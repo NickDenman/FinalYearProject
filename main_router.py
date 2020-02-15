@@ -9,11 +9,16 @@ import json
 num_agents = 1
 env = pcb.PCBBoard(num_agents=num_agents)
 Q = {}
-epsilon = 0.5
+epsilon_start = 0.5
+epsilon_end = 0.05
 alpha = 0.3
 discount_factor = 0.9
 games_won = []
 k_played = []
+interaction_count = 0
+total_interaction_count = 75000
+learning_interactions = 25
+samples = 200
 
 
 def setup_learning():
@@ -47,7 +52,7 @@ def get_best_action(s):
     best = -math.inf
 
     # pick random move in accordance with epsilon to maintain exploration
-    if random.random() < (epsilon - ((epsilon * len(Q)) / 100_000)):
+    if random.random() < (epsilon_start - ((epsilon_start - epsilon_end) * (interaction_count / total_interaction_count))):
         return random.randrange(1, 9)
 
     choices = []
@@ -63,14 +68,16 @@ def get_best_action(s):
 
 
 def learn(k, n, m):
+    global interaction_count
+
     count = 0
     while count < k:
         print("iteration: " + str(count) + " [" + str(len(Q)) + "]")
-        interaction = 0
         reset_env()
-        while interaction < n:
+        interactions = 0
+        while interactions < n:
             move()
-            interaction += 1
+            interactions += 1
 
         num_games = 0
         total = 0
@@ -81,6 +88,7 @@ def learn(k, n, m):
         games_won.append(total / m)
         count += 1
         k_played.append(count * n)
+        interaction_count += 1
 
 
 def move():
@@ -149,7 +157,7 @@ def reset_env():
 
 
 setup_learning()
-learn(75000, 25, 200)
+learn(total_interaction_count, learning_interactions, samples)
 plt.plot(k_played, games_won)
 plt.show()
 

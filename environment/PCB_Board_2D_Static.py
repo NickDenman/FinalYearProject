@@ -2,6 +2,7 @@ from enum import Enum
 
 import numpy as np
 import copy
+import environment.PCBRenderer as renderer
 
 FINAL_REWARD = 25.0
 NET_REWARD = 0.0
@@ -35,7 +36,7 @@ class PCBBoard:
         self.min_net_dist = min_net_dist
         self.agents = {}
         self.nets = set([])
-        self.completed_nets = set([])
+        self.all_nets = []
 
         self.actions = {1: [-1, 0],
                         2: [-1, 1],
@@ -52,8 +53,8 @@ class PCBBoard:
     def reset_env(self):
         self.grid.fill(0)
         self.nets.clear()
+        self.all_nets.clear()
         self.agents.clear()
-        self.completed_nets.clear()
 
         self.initialise_grid()
         self.initialise_agent_data()
@@ -62,6 +63,7 @@ class PCBBoard:
         self.grid[2 * start_row, 2 * start_col] = GridCells.VIA.value
         self.grid[2 * end_row, 2 * end_col] = GridCells.VIA.value
         self.nets.add(Net(Position(start_row, start_col), Position(end_row, end_col)))
+        self.all_nets.append(Net(Position(start_row, start_col), Position(end_row, end_col)))
 
     def initialise_grid(self):
         self.add_via(0, 0, 0, 3)
@@ -128,14 +130,6 @@ class PCBBoard:
 
         observation = np.array(self.grid[2 * row_start:2 * row_end:2, 2 * col_start:2 * col_end: 2], copy=True)
 
-        # # insert agents location into observation map if not the current agent
-        # for a_id, agent in self.agents.items():
-        #     if not agent.complete and \
-        #             a_id != agent_id and \
-        #             row_start <= agent.cur_loc.row < row_end and \
-        #             col_start <= agent.cur_loc.col < col_end:
-        #         observation[agent.cur_loc.row, agent.cur_loc.col] = GridCells.AGENT.value
-
         for row in range(row_end - row_start):
             for col in range(col_end - col_start):
                 if observation[row, col] > GridCells.VIA.value:
@@ -179,7 +173,6 @@ class PCBBoard:
 
             if self.is_net_complete(agent_id):
                 # print("Net complete...")
-                self.completed_nets.add(self.agents.get(agent_id).cur_net)
                 self.agents.get(agent_id).prev_net = self.agents.get(agent_id).cur_net
                 self.agents.get(agent_id).prev_loc = self.agents.get(agent_id).cur_loc
 
@@ -356,20 +349,20 @@ if __name__ == '__main__':
     print(board.grid)
     print()
     print()
-
-    grid, location, destination = board.observe(0)
-    print(grid)
-    print("location: " + str(location))
-    print("destination: " + str(destination))
-
-
-    reward = board.joint_act({0:6})
-    print("reward0: " + str(reward))
-
-    reward = board.joint_act({0: 6})
-    print("reward1: " + str(reward))
-
-    reward = board.joint_act({0: 6})
-    print("reward2: " + str(reward))
-
     board.print_grid()
+
+    board.joint_act({0: 5})
+    board.joint_act({0: 5})
+    board.joint_act({0: 3})
+    board.joint_act({0: 4})
+    board.joint_act({0: 3})
+    board.joint_act({0: 3})
+    board.joint_act({0: 3})
+    board.joint_act({0: 3})
+    board.joint_act({0: 4})
+
+
+    print()
+    board.print_grid()
+    renderer.render_board(board.rows, board.cols, board.all_nets, board.grid[::2, ::2])
+
