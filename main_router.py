@@ -4,21 +4,22 @@ import random
 import numpy as np
 import environment.PCB_Board_2D_Static as pcb
 import matplotlib.pyplot as plt
-import json
+import pickle
+import environment.PCBRenderer as renderer
 
-num_agents = 1
+num_agents = 2
 env = pcb.PCBBoard(num_agents=num_agents)
 Q = {}
 epsilon_start = 0.5
 epsilon_end = 0.05
-alpha = 0.3
+alpha = 0.4
 discount_factor = 0.9
 games_won = []
 k_played = []
 interaction_count = 0
-total_interaction_count = 75000
+total_interaction_count = 10_000
 learning_interactions = 25
-samples = 200
+samples = 150
 
 
 def setup_learning():
@@ -32,7 +33,10 @@ def add_states_to_q(s):
 
 
 def update_q_table(s_a, s_prime, reward):
-    Q[s_a] = Q[s_a] + alpha * (reward + discount_factor * get_max_reward(s_prime) - Q[s_a])
+    try:
+        Q[s_a] = Q[s_a] + alpha * (reward + discount_factor * get_max_reward(s_prime) - Q[s_a])
+    except:
+        print("something wrong...")
 
 
 # Returns the best reward expected from the current game state.
@@ -48,11 +52,13 @@ def get_random_action(s):
     return random.randrange(1, 9)
 
 
-def get_best_action(s):
+def get_best_action(s, explore):
     best = -math.inf
 
     # pick random move in accordance with epsilon to maintain exploration
-    if random.random() < (epsilon_start - ((epsilon_start - epsilon_end) * (interaction_count / total_interaction_count))):
+    completed_percent = interaction_count / total_interaction_count
+    exploration_threshold = epsilon_start - ((epsilon_start - epsilon_end) * completed_percent)
+    if random.random() < exploration_threshold:
         return random.randrange(1, 9)
 
     choices = []
@@ -97,10 +103,7 @@ def move():
     state_action = {}
     for ag in range(num_agents):
         s = get_observation(ag)
-        if s is None:
-            continue
-
-        a = get_best_action(s)
+        a = get_best_action(s, True)
         actions[ag] = a
         observations[ag] = s
         state_action[ag] = (s, a)
@@ -138,7 +141,7 @@ def route_board():
         for ag in range(num_agents):
             s = get_observation(ag)
             if (s, 1) in Q:
-                a = get_best_action(s)
+                a = get_best_action(s, False)
             else:
                 a = get_random_action(s)
 
@@ -152,19 +155,34 @@ def route_board():
 
 def reset_env():
     env.reset_env()
-    s = get_observation(0)
-    add_states_to_q(s)
+    for ag in range(num_agents):
+        s = get_observation(ag)
+        add_states_to_q(s)
 
+
+def save_q_table():
+    with open("q_table", "wb") as file:
+        pickle.dump(Q, file)
+
+
+def load_q_table():
+    global Q
+
+    with open("q_table", "rb") as file:
+        Q = pickle.load(file)
+
+
+# load_q_table()
+# reward = route_board()
+# print(reward)
+# renderer.render_board(env.rows, env.cols, env.nets, env.grid[::2, ::2])
 
 setup_learning()
 learn(total_interaction_count, learning_interactions, samples)
+save_q_table()
+
 plt.plot(k_played, games_won)
 plt.show()
 
 plt.plot(k_played, games_won)
 plt.savefig("plots/plot.png")
-
-json_q = json.dumps(str(Q))
-f = open("q.json", "w")
-f.write(json_q)
-f.close()
