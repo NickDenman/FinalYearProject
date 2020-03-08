@@ -1,13 +1,16 @@
+import math
+
 import numpy as np
 import copy
 import environment.PCBRenderer as renderer
 import environment.GridCells as gc
 
 FINAL_REWARD = 25.0
-NET_REWARD = 0.0
+NET_REWARD = 2.0
 STEP_REWARD = -1.0
 INVALID_ACTION_REWARD = -4.0
 DIAGONAL_REWARD = -0.4  # diagonal lines are of length √2 ~= 1.4
+DIRECTION_CHANGE_FACTOR = 2.0
 
 action_symbols = {0: ".",
                   1: "|",
@@ -22,10 +25,27 @@ action_symbols = {0: ".",
                   10: "O"}
 
 
+def read_file(filename):
+    file_content = []
+    with open(filename) as file:
+        for idx, line in enumerate(file):
+            file_content.append(line)
+
+    nets = {}
+    net_id = 0
+    for net in range(4, len(file_content)):
+        x = file_content[net].split(", ")
+        nets[net_id] = (Net(Position(int(x[0]), int(x[1])), Position(int(x[2]), int(x[3]))))
+        net_id += 1
+    return int(file_content[0]), int(file_content[1]), int(file_content[2]), int(file_content[3]), nets
+
+
 class PCBBoard:
-    def __init__(self, rows=4, cols=4, min_net_dist=2.0, observation_rows=4, observation_cols=4, num_nets=10,
+    def __init__(self, input_file, rows=4, cols=4, min_net_dist=2.0, observation_rows=4, observation_cols=4, num_nets=10,
                  num_agents=1):
-        self.grid = np.zeros(((2 * rows) - 1, (2 * cols) - 1), dtype=int)
+        rows, cols, observation_rows, observation_cols, nets = read_file(input_file)
+
+        self.grid = np.zeros(((2 * rows) - 1, (2 * cols) - 1), dtype=np.int32)
         self.rows = rows
         self.cols = cols
         self.num_agents = num_agents
@@ -34,43 +54,42 @@ class PCBBoard:
         self.num_nets = num_nets
         self.min_net_dist = min_net_dist
         self.agents = {}
-        self.nets = {}
-        self.total_nets = 0
+        self.nets = nets
+        self.total_nets = len(nets)
         self.cur_net_id = 0
 
-        self.actions = {1: [-1, 0],
+        self.actions = {0: [0, 0],
+                        1: [-1, 0],
                         2: [-1, 1],
                         3: [0, 1],
                         4: [1, 1],
                         5: [1, 0],
                         6: [1, -1],
                         7: [0, -1],
-                        8: [-1, -1]}
+                        8: [-1, -1], }
 
         self.initialise_grid()
         self.initialise_agent_data()
 
+    def get_actions(self):
+        return list(self.actions.keys())
+
     def reset_env(self):
         self.grid.fill(0)
-        self.nets.clear()
-        self.total_nets = 0
+
+        for _, net in self.nets.items():
+            net.agent_id = -1
+
         self.cur_net_id = 0
         self.agents.clear()
 
         self.initialise_grid()
         self.initialise_agent_data()
 
-    def add_net(self, start_row, start_col, end_row, end_col):
-        self.grid[2 * start_row, 2 * start_col] = gc.GridCells.VIA.value
-        self.grid[2 * end_row, 2 * end_col] = gc.GridCells.VIA.value
-        self.nets[self.total_nets] = Net(Position(start_row, start_col), Position(end_row, end_col))
-        self.total_nets += 1
-
     def initialise_grid(self):
-        self.add_net(4, 0, 4, 5)
-        self.add_net(5, 0, 1, 4)
-        self.add_net(2, 2, 4, 4)
-        self.add_net(5, 1, 5, 5)
+        for _, net in self.nets.items():
+            self.grid[2 * net.start.row, 2 * net.start.col] = gc.GridCells.VIA.value
+            self.grid[2 * net.end.row, 2 * net.end.col] = gc.GridCells.VIA.value
 
     def get_new_net(self, agent_id):
         if self.cur_net_id == self.total_nets:
@@ -115,8 +134,8 @@ class PCBBoard:
             return None, None, None
 
         agent_loc = self.agents.get(agent_id).cur_loc
-        row_start = agent_loc.row - (self.observation_rows // 2)
-        row_end = agent_loc.row + (self.observation_rows // 2)
+        row_start = agent_loc.row - math.floor(self.observation_rows / 2)
+        row_end = agent_loc.row + math.ceil(self.observation_rows / 2)
         row_delta = 0
 
         if row_start < 0:
@@ -127,8 +146,8 @@ class PCBBoard:
         row_start += row_delta
         row_end += row_delta
 
-        col_start = agent_loc.col - (self.observation_cols // 2)
-        col_end = agent_loc.col + (self.observation_cols // 2)
+        col_start = agent_loc.col - math.floor(self.observation_cols / 2)
+        col_end = agent_loc.col + math.ceil(self.observation_cols / 2)
         col_delta = 0
 
         if col_start < 0:
@@ -155,12 +174,9 @@ class PCBBoard:
             if not self.agents.get(id).complete:
                 self.__act(id, action)
 
-        return self.get_reward()
+        return self.get_reward(), self.is_game_over()
 
     def __act(self, agent_id, direction):
-        if direction == 9:
-            print("shit...")
-
         agent_loc = self.agents.get(agent_id).cur_loc
 
         if self.is_valid_move(agent_loc, direction, agent_id):
@@ -189,8 +205,10 @@ class PCBBoard:
                 new_net = self.get_new_net(agent_id)
                 if new_net is not None:
                     self.agents.get(agent_id).cur_net = new_net
-                    self.agents.get(agent_id).cur_loc = self.agents.get(agent_id).cur_net.start
+                    net_start = self.agents.get(agent_id).cur_net.start
+                    self.agents.get(agent_id).cur_loc = net_start
                     self.agents.get(agent_id).new_net = True
+                    self.grid[2 * net_start.row, 2 * net_start.col] = gc.GridCells.AGENT.value
 
                 else:
                     self.agents.get(agent_id).cur_net = None
@@ -202,7 +220,6 @@ class PCBBoard:
 
         else:
             self.agents.get(agent_id).valid_action = False
-            # print("invalid move: " + str(direction) + " in position " + str(agent_loc) + " for agent " + str(agent_id))
 
     def step_reward_function(self, direction, prev_dir):
         if prev_dir < gc.GridCells.VIA.value:
@@ -213,7 +230,7 @@ class PCBBoard:
             if dir_delta <= 1:
                 return 0
 
-            return -dir_delta
+            return -dir_delta * DIRECTION_CHANGE_FACTOR
         return 0
 
     def get_reward(self):
@@ -226,12 +243,16 @@ class PCBBoard:
         for _, agent in self.agents.items():
             if agent.complete:
                 continue
+            if agent.valid_action:
+                if agent.new_net:
+                    reward += NET_REWARD
 
-            if agent.dir % 2 == 0:
-                reward += DIAGONAL_REWARD
-            if agent.valid_action and agent.prev_loc != agent.cur_net.start:
-                reward += self.step_reward_function(agent.dir, agent.prev_dir)
-            elif not agent.valid_action:
+                if agent.dir % 2 == 0:
+                    reward += DIAGONAL_REWARD
+
+                if agent.prev_loc != agent.cur_net.start:
+                    reward += self.step_reward_function(agent.dir, agent.prev_dir)
+            else:
                 reward += INVALID_ACTION_REWARD
 
         return reward
@@ -275,6 +296,11 @@ class PCBBoard:
             for _col in range((self.cols * 2) - 1):
                 print(result[_row, _col], end='')
             print()
+
+    def step(self, agent_id, action):
+        self.__act(agent_id, action)
+
+        return self.get_reward(), self.is_game_over()
 
 
 class Net:
@@ -332,51 +358,34 @@ class AgentData:
 
 
 if __name__ == '__main__':
-    # init_fail_run()
-    # init_fail_run()
-    board = PCBBoard(rows=6, cols=6, num_agents=1)
-    for i, agent in board.agents.items():
-        print(str(i) + ": " + str(agent.cur_net))
-
-    print(board.grid)
-    print()
-    print()
-    board.print_grid()
-
+    env = PCBBoard("test_env.txt")
     reward = 0
-    reward += board.joint_act({0: 1})
-    reward += board.joint_act({0: 1})
-    reward += board.joint_act({0: 2})
-    reward += board.joint_act({0: 2})
-    reward += board.joint_act({0: 3})
-    reward += board.joint_act({0: 3})
-    reward += board.joint_act({0: 4})
-    reward += board.joint_act({0: 5})
-    reward += board.joint_act({0: 5})
-    reward += board.joint_act({0: 5})
+    r, done = env.joint_act({0: 1})
+    reward += r
 
-    print()
-    board.print_grid()
-    reward += board.joint_act({0: 2})
-    reward += board.joint_act({0: 1})
-    reward += board.joint_act({0: 1})
-    reward += board.joint_act({0: 2})
-    reward += board.joint_act({0: 3})
-    reward += board.joint_act({0: 3})
+    r, done = env.joint_act({0: 1})
+    reward += r
 
-    print()
-    board.print_grid()
-    reward += board.joint_act({0: 4})
-    reward += board.joint_act({0: 4})
+    r, done = env.joint_act({0: 2})
+    reward += r
+    #
+    # r, done = env.joint_act({0: 3})
+    # reward += r
 
-    print()
-    board.print_grid()
-    reward += board.joint_act({0: 3})
-    reward += board.joint_act({0: 3})
-    reward += board.joint_act({0: 3})
-    reward += board.joint_act({0: 3})
+    r, done = env.joint_act({0: 3})
+    reward += r
 
-    print()
+    r, done = env.joint_act({0: 4})
+    reward += r
+
+    r, done = env.joint_act({0: 4})
+    reward += r
+
+    r, done = env.joint_act({0: 4})
+    reward += r
+
+    env.print_grid()
     print(reward)
-    renderer.render_board(board.rows, board.cols, board.nets, board.grid[::2, ::2])
+
+
 
