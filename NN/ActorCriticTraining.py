@@ -1,44 +1,14 @@
 import numpy as np
 import torch
-import gym
-import environment.PCB_Board_2D_Static as PCB
-import patron.AC as ac
-import patron.AC_1 as ac1
+import environment.ZeroTwentyPCBBoard as zt_pcb
+import NN.AC as ac
 
 
 def t(x):
     return torch.from_numpy(x).float()
 
 
-def observe_env_normalised(agent_id):
-    grid, pos, dest = env.observe(agent_id)
-    grid = grid.flatten() / 10.0
-
-    agent_info = np.zeros(5)
-    agent_info[0] = pos.row / env.observation_rows
-    agent_info[1] = pos.col / env.observation_cols
-    agent_info[2] = dest.row / env.rows
-    agent_info[3] = dest.col / env.cols
-    agent_info[4] = agent_id / env.num_agents
-
-    return np.concatenate((grid, agent_info))
-
-
-def observe_env(agent_id):
-    grid, pos, dest = env.observe(agent_id)
-    grid = grid.flatten()
-
-    agent_info = np.zeros(5)
-    agent_info[0] = pos.row
-    agent_info[1] = pos.col
-    agent_info[2] = dest.row
-    agent_info[3] = dest.col
-    agent_info[4] = agent_id
-
-    return np.concatenate((grid, agent_info))
-
-
-class Memory():
+class Memory:
     def __init__(self):
         self.log_probs = []
         self.values = []
@@ -71,31 +41,12 @@ class Memory():
             yield data
 
 
-env = PCB.PCBBoard("test_env.txt")
-state_dim = env.observation_rows * env.observation_cols + 2 + 2 + 1  # grid size, agent_loc, agent_dest, agent_id
-n_actions = len(env.actions)
-hidden_layer_1 = 256
-hidden_layer_2 = 128
-actor = ac.Actor(state_dim, 256, 128, n_actions)
-critic = ac.Critic(state_dim, 64, 32, 1)
-
-actor_1 = ac1.Actor(state_dim, 16, n_actions)
-critic_1 = ac1.Critic(state_dim, 8, 1)
-
-adam_actor = torch.optim.Adam(actor.parameters(), lr=1e-3)
-adam_critic = torch.optim.Adam(critic.parameters(), lr=1e-3)
-
-gamma = 0.99
-memory = Memory()
-max_steps = 40
-
-
 def learn(memory, q_val):
     values = torch.stack(memory.values)
     q_values = np.zeros((len(memory), 1))
     for i, (_, _, reward, mask) in enumerate(memory.reversed()):
         q_val = reward + gamma * (q_val * mask)
-        q_values[len(memory) - 1 - i] = q_val  # something is wrong...
+        q_values[len(memory) - 1 - i] = q_val
 
     advantage = torch.from_numpy(q_values).float() - values
 
@@ -112,22 +63,24 @@ def learn(memory, q_val):
 
 def train(episodes, steps_per_episode):
     rewards = []
+    avg_reward = 0
+    print_count = 100
 
     for episode in range(episodes):
         done = False
         episode_reward = 0.0
-        env.reset_env()
+        env.reset()
         steps = 0
 
         while not done and steps < steps_per_episode:
-            observation = observe_env_normalised(0)
+            observation = env.observe(0)
             torch_state = t(observation)
             action_probs = actor(torch_state)
             action_dist = torch.distributions.Categorical(action_probs)
             action = action_dist.sample()
             value = critic(torch_state)
 
-            reward, done = env.joint_act({0: action.detach().item()})
+            reward, done = env.step({0: action.detach().item()})
 
             episode_reward += reward
             memory.add(action_dist.log_prob(action), value, reward, done)
@@ -136,19 +89,39 @@ def train(episodes, steps_per_episode):
 
         final_value = 0.0
         if not done:
-            observation = observe_env_normalised(0)
+            observation = env.observe(0)
             torch_state = t(observation)
             final_value = critic(torch_state).detach().data.numpy()
+        # else:
+        #     print("huzzah")
         learn(memory, final_value)
         memory.clear()
 
+        avg_reward += episode_reward
         rewards.append(episode_reward)
 
-        if episode % 100 == 0:
-            print(str(episode) + ": " + str(episode_reward))
+        if episode % print_count == 0:
+            print(str(episode) + ": " + str(avg_reward / print_count))
+            avg_reward = 0.0
 
     return rewards
 
+env = zt_pcb.ZeroTwentyPCBBoard("env/small.txt", padded=True)
+state_dim = env.get_observation_size()
+n_actions = env.get_action_size()
+
+hidden_layers = [256, 128, 256]
+actor = ac.Actor(state_dim, hidden_layers, n_actions)
+critic = ac.Critic(state_dim, hidden_layers, 1)
+
+adam_actor = torch.optim.Adam(actor.parameters(), lr=1e-3)
+adam_critic = torch.optim.Adam(critic.parameters(), lr=1e-3)
+
+gamma = 0.99
+memory = Memory()
+max_steps = 60
 
 r = train(episodes=10000, steps_per_episode=max_steps)
+env.render_board()
 print("is it working???")
+

@@ -39,6 +39,9 @@ class ZeroTwentyPCBBoard(pcb.PCBBoard):
 
         for agent_id, action in agent_actions.items():
             agent = self.agents.get(agent_id)
+            if agent.done:
+                continue
+
             if action == 0:
                 agent.moved = False
                 continue
@@ -85,11 +88,14 @@ class ZeroTwentyPCBBoard(pcb.PCBBoard):
 
         reward = self.get_reward()
         done = self.board_complete()
-        if reset:
-            # self.reset()
-            pass
+        if done:
+            obs = self.reset()
+        else:
+            obs = [self.observe(i) for i in range(self.num_agents)]
 
-        return reward, done
+        agent_status = [a.done for _, a in self.agents.items()]
+
+        return obs, reward, done, agent_status
 
     def is_valid_move(self, agent, action):
         next_r, next_c = self.get_next_pos(agent.location, action)
@@ -165,7 +171,7 @@ class ZeroTwentyPCBBoard(pcb.PCBBoard):
     def __padded_observation(self, agent_id):
         agent = self.agents.get(agent_id)
         if agent.done:
-            return None
+            return np.full(shape=(self.obs_rows * self.obs_cols + 3), fill_value=GridCells.BLANK.value, dtype=np.float32)
 
         r, c = agent.location
         dest_r, dest_c = self.nets.get(agent.net_id).end

@@ -1,6 +1,8 @@
 import functools
 import abc
 import math
+
+import gym
 import numpy as np
 import cairocffi as cairo
 
@@ -49,8 +51,9 @@ def read_file(filename):
     return int(file_content[0]), int(file_content[1]), int(file_content[2]), int(file_content[3]), nets
 
 
-class PCBBoard(abc.ABC):
+class PCBBoard(abc.ABC, gym.Env):
     def __init__(self, rows, cols, grid_rows, grid_cols, obs_rows, obs_cols, nets, num_agents):
+        super(PCBBoard, self).__init__()
         self.grid = np.zeros(shape=(grid_rows, grid_cols), dtype=np.float32)
         self.rows = rows
         self.cols = cols
@@ -66,6 +69,9 @@ class PCBBoard(abc.ABC):
         self.total_nets = len(nets)
         self.cur_net_id = 0
 
+        self.observation_space = gym.spaces.Box(low=0, high=20, shape=(self.num_agents, self.get_observation_size(),), dtype=np.float32)
+        self.action_space = gym.spaces.Discrete(self.get_action_size())
+
         self.initialise_agents()
         self.initialise_grid()
 
@@ -78,7 +84,7 @@ class PCBBoard(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def step(self, actions):
+    def step(self, action):
         pass
 
     @abc.abstractmethod
@@ -107,6 +113,8 @@ class PCBBoard(abc.ABC):
 
                 if agent.prev_action % 2 == 0:
                     r += DIAGONAL_REWARD
+            elif agent.done:
+                pass
             else:
                 r += NO_MOVE
 
@@ -159,6 +167,8 @@ class PCBBoard(abc.ABC):
         self.initialise_agents()
         self.initialise_grid()
 
+        return [self.observe(i) for i in range(self.num_agents)]
+
     def dir_change_reward(self, agent):
         if agent.prev_prev_action == 0 or agent.prev_action == 0:
             return 0
@@ -171,6 +181,11 @@ class PCBBoard(abc.ABC):
 
         return -dir_delta * DIRECTION_CHANGE_FACTOR
 
+    def get_agent_statuses(self):
+        return [a.done for _, a in self.agents.items()]
+
+    def close(self):
+        pass
 
     def render_board(self, filename="pcb_render.png", width=1024, height=1024):
         ims = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
