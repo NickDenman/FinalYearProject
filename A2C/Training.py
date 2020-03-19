@@ -4,17 +4,20 @@ import A2C.Runner as Runner
 import A2C.ACNetwork as ac
 from environment import ZeroTwentyPCBBoard as zt_pcb
 import torch.nn.functional as F
-import baselines.common.vec_env.subproc_vec_env as SubprocVecEnv
 from multiprocessing.spawn import freeze_support
 import os
 from baselines.common.vec_env import DummyVecEnv
+from baselines.common.vec_env import ShmemVecEnv
+from baselines.common.vec_env import SubprocVecEnv
+from baselines import logger
 import numpy as np
 import matplotlib.pyplot as plt
+import statistics
 
 
-num_envs = 8
+num_envs = 32
 num_agents = 1
-num_episodes = 100000
+num_episodes = 10000
 
 gamma = 0.98
 lambda_ = 0.92
@@ -24,7 +27,7 @@ grad_norm_limit = 20
 
 
 def create_env(index):
-    env = zt_pcb.ZeroTwentyPCBBoard("envs/v_small/v_small_" + str(index) + ".txt", padded=True, num_agents=num_agents)
+    env = zt_pcb.ZeroTwentyPCBBoard("envs/v_small/v_small_" + str(index % 8) + ".txt", padded=True, num_agents=num_agents)
     return env
 
 
@@ -37,7 +40,7 @@ def get_env_attributes():
 def setup():
     ob_size, action_size, num_steps = get_env_attributes()
 
-    actor = ac.Actor(ob_size, [64], action_size)
+    actor = ac.Actor(ob_size, [64], action_size)  # 4x4 works best at [64]
     critic = ac.Critic(ob_size, [64], 1)
 
     adam_actor = torch.optim.Adam(actor.parameters(), lr=1e-3)
@@ -48,6 +51,7 @@ def setup():
 
 def train(num_steps, actor, adam_actor, critic, adam_critic):
     total_rewards = []
+    avg_reward = 0.0
 
     for episode in range(num_episodes):
         steps = []
@@ -60,7 +64,9 @@ def train(num_steps, actor, adam_actor, critic, adam_critic):
             logits = actor(obs)
 
             action_probs = F.softmax(logits, dim=-1)
-            actions = torch.distributions.Categorical(action_probs).sample()  # NOTE: these are different format to other project you're following `.unsqueeze(1)` brings them to the same format.
+            action_dists = torch.distributions.Categorical(action_probs)
+            entropy = action_dists.entropy()
+            actions = action_dists.sample()
             values = critic(obs)
 
             action_list = actions.cpu().tolist()
@@ -74,21 +80,36 @@ def train(num_steps, actor, adam_actor, critic, adam_critic):
             rewards = torch.FloatTensor(rewards).unsqueeze(1)
             actions = actions.unsqueeze(1)
 
-            steps.append((rewards, masks, actions, logits, values))
+            steps.append((rewards, masks, actions, logits, entropy, values))
 
         final_obs = torch.from_numpy(agent_observations[:, 0])
         final_values = critic(final_obs)
 
-        steps.append((None, None, None, None, final_values))
+        steps.append((None, None, None, None, None, final_values))
         rollout = process_rollout(steps)
 
         learn(adam_actor, adam_critic, rollout)
 
         total_rewards.append(episode_rewards.mean())
+        avg_reward += total_rewards[-1]
         if episode % (num_episodes // 100) == 0:
-            print(episode, " - ", (episode * 100) // num_episodes, "%", sep="")
+            avg_reward /= (num_episodes // 100)
+            _, _, _, values, returns, _ = rollout
+            values = values.detach().numpy().flatten()
+            returns = returns.detach().numpy().flatten()
+
+            ev = explained_variance(returns, values)
+            print((episode * 100) // num_episodes, "% :: ", ev, " :: ", avg_reward, sep="")
+            avg_reward = 0.0
 
     return total_rewards
+
+
+def explained_variance(y_true, y_pred):
+    diff_var = statistics.variance((y_true - y_pred).tolist())
+    var = statistics.variance(y_true.tolist())
+
+    return 1 - (diff_var / var)
 
 
 def process_rollout(steps):
@@ -96,33 +117,34 @@ def process_rollout(steps):
     out = [None] * out_size
 
     advantages = torch.zeros(num_envs, 1)
-    _, _, _, _, last_values = steps[-1]
+    _, _, _, _, _, last_values = steps[-1]
     returns = last_values.data
 
     for t in reversed(range(out_size)):
-        rewards, masks, actions, logits, values = steps[t]
-        _, _, _, _, next_values = steps[t + 1]
+        rewards, masks, actions, logits, entropy, values = steps[t]
+        _, _, _, _, _, next_values = steps[t + 1]
 
         returns = rewards + returns * gamma * masks
 
         deltas = rewards + next_values.data * gamma * masks - values.data
         advantages = advantages * gamma * lambda_ * masks + deltas
 
-        out[t] = actions, logits, values, returns, advantages
+        out[t] = actions, logits, entropy, values, returns, advantages
 
-    return map(lambda x: torch.cat(x, 0), zip(*out))
+    return list(map(lambda x: torch.cat(x, 0), zip(*out)))
 
 
 def learn(adam_actor, adam_critic, rollout):
-    actions, logits, values, returns, advantages = rollout
+    actions, logits, entropy, values, returns, advantages = rollout
 
-    probs = F.softmax(logits, dim=-1)
+    # advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-5)  # Normalise the advantages
+
     log_probs = F.log_softmax(logits, dim=-1)
     log_action_probs = log_probs.gather(1, torch.autograd.Variable(actions))
 
-    action_loss = (-log_action_probs * torch.autograd.Variable(advantages)).sum()  # TODO: could look at .mean()
-    value_loss = value_coeff * ((1 / 2) * (values - torch.autograd.Variable(returns)) ** 2).sum()
-    entropy_loss = (log_probs * probs).sum()
+    action_loss = (-log_action_probs * torch.autograd.Variable(advantages)).mean()
+    value_loss = value_coeff * ((1 / 2) * (values - torch.autograd.Variable(returns)) ** 2).mean()
+    entropy_loss = entropy.mean()
     policy_loss = action_loss + entropy_loss * entropy_coeff
 
     policy_loss.backward()
