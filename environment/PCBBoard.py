@@ -49,14 +49,15 @@ def read_file(filename):
 
 
 class PCBBoard(abc.ABC, gym.Env):
-    def __init__(self, rows, cols, grid_rows, grid_cols, rand_nets, blank_value, min_nets=None, max_nets=None, filename=None):
+    def __init__(self, rows, cols, grid_rows, grid_cols, rand_nets, obstacle_value, blank_value, min_nets=None, max_nets=None, filename=None):
         super(PCBBoard, self).__init__()
+        self.obstacle_value = obstacle_value
         self.blank_value = blank_value
         self.MAX_OBS_ROWS = 10
         self.MAX_OBS_COLS = 10
         self.middle_obs_row = self.MAX_OBS_ROWS // 2
         self.middle_obs_col = self.MAX_OBS_COLS // 2
-        self.grid = np.full(shape=(grid_rows, grid_cols), fill_value=blank_value, dtype=np.float32)
+        self.grid = np.full(shape=(grid_rows, grid_cols), fill_value=obstacle_value, dtype=np.float32)
         self.rows = rows
         self.cols = cols
         self.obs_rows = self.MAX_OBS_ROWS

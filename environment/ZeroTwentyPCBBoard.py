@@ -15,7 +15,7 @@ opposite_actions = {1: 5,
 class ZeroTwentyPCBBoard(pcb.PCBBoard):
     def __init__(self, rows, cols, rand_nets=True, min_nets=None, max_nets=None, filename=None, padded=True):
         self.padded = padded
-        super().__init__(rows, cols, rows, cols, blank_value=GridCells.BLANK.value, rand_nets=rand_nets, min_nets=min_nets, max_nets=max_nets, filename=filename)
+        super().__init__(rows, cols, rows, cols, blank_value=GridCells.BLANK.value, obstacle_value=GridCells.OBSTACLE.value, rand_nets=rand_nets, min_nets=min_nets, max_nets=max_nets, filename=filename)
 
     def get_observation_size(self):
         if self.padded:
@@ -151,12 +151,12 @@ class ZeroTwentyPCBBoard(pcb.PCBBoard):
 
     def __padded_observation(self):
         if self.agent.done:
-            return np.full(shape=self.get_observation_size(), fill_value=self.blank_value, dtype=np.float32)
+            return np.full(shape=self.get_observation_size(), fill_value=self.obstacle_value, dtype=np.float32)
         dest_r, dest_c = self.nets.get(self.agent.net_id).end
         centre_obs_row = self.obs_rows // 2
         centre_obs_col = self.obs_cols // 2
         r, c = self.agent.location
-        grid_observation = np.full(shape=(self.obs_rows, self.obs_cols), fill_value=self.blank_value, dtype=np.float32)
+        grid_observation = np.full(shape=(self.obs_rows, self.obs_cols), fill_value=self.obstacle_value, dtype=np.float32)
 
         obs_start_row = max(0, centre_obs_row - r)
         obs_end_row = min(self.obs_rows, centre_obs_row + self.rows - r)

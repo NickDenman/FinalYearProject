@@ -5,8 +5,8 @@ import numpy as np
 class BinaryPCBBoard(pcb.PCBBoard):
     def __init__(self, rows, cols, rand_nets=True, min_nets=None, max_nets=None, filename=None, padded=True):
         self.padded = padded
-        blank_value = 0.0
-        super().__init__(rows, cols, (3 * rows) - 2, (3 * cols) - 2, blank_value=blank_value, rand_nets=rand_nets, min_nets=min_nets, max_nets=max_nets, filename=filename)
+        fill_value = 0.0
+        super().__init__(rows, cols, (3 * rows) - 2, (3 * cols) - 2, fill_value=fill_value, rand_nets=rand_nets, min_nets=min_nets, max_nets=max_nets, filename=filename)
 
     def get_observation_size(self):
         if self.padded:
@@ -94,12 +94,12 @@ class BinaryPCBBoard(pcb.PCBBoard):
 
     def __padded_observation(self):
         if self.agent.done:
-            return np.full(shape=self.get_observation_size(), fill_value=self.blank_value, dtype=np.float32)
+            return np.full(shape=self.get_observation_size(), fill_value=self.obstacle_value, dtype=np.float32)
         dest_r, dest_c = self.nets.get(self.agent.net_id).end
         centre_obs_row = self.obs_rows // 2
         centre_obs_col = self.obs_cols // 2
         r, c = self.agent.location
-        grid_observation = np.full(shape=((3 * self.obs_rows) - 2, (3 * self.obs_cols) - 2), fill_value=self.blank_value, dtype=np.float32)
+        grid_observation = np.full(shape=((3 * self.obs_rows) - 2, (3 * self.obs_cols) - 2), fill_value=self.obstacle_value, dtype=np.float32)
 
         obs_start_row = 3 * max(0, centre_obs_row - r)
         obs_end_row = 3 * min(self.obs_rows, centre_obs_row + self.rows - r) - 2

@@ -160,7 +160,7 @@ def get_agent(actor_critic, args):
 
 def route_board(actor_critic, idx):
     # env = ZeroTwentyPCBBoard(5, 5, 5, 5, rand_nets=True, min_nets=3, max_nets=7, padded=True)
-    env = ZeroTwentyPCBBoard(5, 5, 5, 5, rand_nets=False, filename="envs/small/5x5_2.txt", padded=True)
+    env = ZeroTwentyPCBBoard(5, 5, rand_nets=False, filename="envs/small/5x5_2.txt", padded=True)
     obs = env.reset()
     env.render_board()
     done = False
