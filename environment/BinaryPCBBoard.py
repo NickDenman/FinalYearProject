@@ -3,198 +3,139 @@ import numpy as np
 
 
 class BinaryPCBBoard(pcb.PCBBoard):
-    def __init__(self, filename, num_agents=1, padded=True):
-        rows, cols, obs_rows, obs_cols, nets = pcb.read_file(filename)
-        super().__init__(rows, cols, (2 * rows) - 1, (2 * cols) - 1, obs_rows, obs_cols, nets, num_agents)
+    def __init__(self, rows, cols, rand_nets=True, min_nets=None, max_nets=None, filename=None, padded=True):
         self.padded = padded
+        blank_value = 0.0
+        super().__init__(rows, cols, (3 * rows) - 2, (3 * cols) - 2, blank_value=blank_value, rand_nets=rand_nets, min_nets=min_nets, max_nets=max_nets, filename=filename)
 
     def get_observation_size(self):
         if self.padded:
-            return (2 * self.obs_rows - 1) * (2 * self.obs_cols - 1) + 3
+            return (3 * self.obs_rows - 2) * (3 * self.obs_cols - 2) + 3
         else:
-            return (2 * self.obs_rows - 1) * (2 * self.obs_cols - 1) + 5
+            return (3 * self.obs_rows - 2) * (3 * self.obs_cols - 2) + 5
 
     def initialise_grid(self):
         for _, net in self.nets.items():
             row_s, col_s = net.start
             row_e, col_e = net.end
-            self.grid[2 * row_s, 2 * col_s] = 1.0
-            self.grid[2 * row_e, 2 * col_e] = 1.0
+            self.grid[3 * row_s, 3 * col_s] = 1.0
+            self.grid[3 * row_e, 3 * col_e] = 1.0
 
-    def step(self, agent_actions):
-        reset = False
+    def step(self, action):
+        self.current_step += 1
 
-        for agent_id, action in agent_actions.items():
-            agent = self.agents.get(agent_id)
+        if self.agent.done:
+            pass
+        else:
+            if not self.agent.invalid_move:
+                self.agent.prev_prev_action = self.agent.prev_action
+            self.agent.prev_action = action
 
-            if action == 0:
-                agent.moved = False
-                continue
-
-            agent.prev_prev_action = agent.prev_action
-            agent.prev_action = action
-            agent.moved = True
-            if self.is_valid_move(agent, action):
-                agent.invalid_move = False
-                r, c = agent.location
-                r_prime, c_prime = self.get_next_pos(agent.location, action)
+            if self.is_valid_move(action):
+                self.agent.invalid_move = False
+                r, c = self.agent.location
                 r_delta, c_delta = pcb.actions.get(action)
 
                 # Update map
-                self.grid[(2 * r) + r_delta, (2 * c) + c_delta] = 1.0
-                self.grid[(2 * r_prime), (2 * c_prime)] = 1.0
+                for i in range(1, 4):
+                    self.grid[(3 * r) + (i * r_delta), (3 * c) + (i * c_delta)] = 1.0
 
                 # Update agent params
-                agent.location = (r_prime, c_prime)
+                self.agent.location = self.get_next_pos(self.agent.location, action)
+                self.nets.get(self.agent.net_id).path.append(action)
 
-                self.nets.get(agent.net_id).path.append(action)
-
-                if self.is_net_complete(agent):
-                    agent.net_done = True
+                if self.is_net_complete():
+                    self.agent.net_done = True
                     new_net = self.get_new_net()
                     if new_net is None:
-                        agent.done = True
+                        self.agent.done = True
                     else:
-                        agent.net_id = new_net.net_id
-                        new_net.agent_id = agent.agent_id
-                        agent.location = new_net.start
+                        self.agent.net_id = new_net.net_id
+                        self.agent.location = new_net.start
             else:
-                # Allow all agents to move, then reset the env.
-                agent.invalid_move = True
-                reset = True
+                self.agent.invalid_move = True
 
         reward = self.get_reward()
-        done = self.board_complete()
-        if reset:
-            self.reset()
+        self.total_reward += reward
+        done = self.board_complete() or self.current_step > self.total_steps
+        obs = self.observe()
 
-        return reward, done
+        return obs, reward, done, {}
 
-    def is_valid_move(self, agent, action):
-        next_r, next_c = self.get_next_pos(agent.location, action)
+    def is_valid_move(self, action):
+        next_r, next_c = self.get_next_pos(self.agent.location, action)
 
         # Check if new position is inside bounds of grid
         if next_r < 0 or next_r >= self.rows or next_c < 0 or next_c >= self.cols:
             return False
 
         # Check if new position is free/not the destination
-        net = self.nets.get(agent.net_id)
-        if self.grid[2 * next_r, 2 * next_c] != 0.0 and ((next_r, next_c) != net.end):
+        net = self.nets.get(self.agent.net_id)
+        if self.grid[3 * next_r, 3 * next_c] != 0.0 and ((next_r, next_c) != net.end):
             return False
 
         # Check if diagonal lines cross
         if action % 2 == 0:
-            r, c = agent.location
+            r, c = self.agent.location
             delta_r, delta_c = pcb.actions.get(action)
-            diag_r = (2 * r) + delta_r
-            diag_c = (2 * c) + delta_c
+            diag_r = (3 * r) + (2 * delta_r)
+            diag_c = (3 * c) + delta_c
             if self.grid[diag_r, diag_c] != 0.0:
                 return False
 
         return True
 
-    def observe(self, agent_id):
+    def observe(self):
         if self.padded:
-            return self.__padded_observation(agent_id)
+            return self.__padded_observation()
         else:
-            return self.__shifted_observation(agent_id)
+            pass
+            # return self.__shifted_observation()
 
-    def __shifted_observation(self, agent_id):
-        agent = self.agents.get(agent_id)
-        if agent.done:
-            return None
+    def __padded_observation(self):
+        if self.agent.done:
+            return np.full(shape=self.get_observation_size(), fill_value=self.blank_value, dtype=np.float32)
+        dest_r, dest_c = self.nets.get(self.agent.net_id).end
+        centre_obs_row = self.obs_rows // 2
+        centre_obs_col = self.obs_cols // 2
+        r, c = self.agent.location
+        grid_observation = np.full(shape=((3 * self.obs_rows) - 2, (3 * self.obs_cols) - 2), fill_value=self.blank_value, dtype=np.float32)
 
-        r, c = agent.location
-        dest_r, dest_c = self.nets.get(agent.net_id).end
-        row_start = r - self._observation_row_start_offset
-        row_end = r + self._observation_row_end_offset
-        row_delta = 0
-        if row_start < 0:
-            row_delta = -row_start
-        elif row_end > self.rows:
-            row_delta = self.rows - row_end
-        row_start += row_delta
-        row_end += row_delta
+        obs_start_row = 3 * max(0, centre_obs_row - r)
+        obs_end_row = 3 * min(self.obs_rows, centre_obs_row + self.rows - r) - 2
+        obs_start_col = 3 * max(0, centre_obs_col - c)
+        obs_end_col = 3 * min(self.obs_cols, centre_obs_col + self.cols - c) - 2
 
-        col_start = c - self._observation_col_start_offset
-        col_end = c + self._observation_col_end_offset
-        col_delta = 0
-        if col_start < 0:
-            col_delta = -col_start
-        elif col_end > self.cols:
-            col_delta = self.cols - col_end
-        col_start += col_delta
-        col_end += col_delta
+        grid_start_row = 3 * max(0, r - centre_obs_row)
+        grid_end_row = 3 * min(self.rows, r + self.obs_rows - centre_obs_row) - 2
+        grid_start_col = 3 * max(0, c - centre_obs_col)
+        grid_end_col = 3 * min(self.cols, c + self.obs_cols - centre_obs_col) - 2
 
-        observation = np.zeros(shape=self.get_observation_size(), dtype=np.float32)
-        observation[:self.get_observation_size() - 5] = \
-            self.grid[2 * row_start:(2 * row_end) - 1, 2 * col_start:(2 * col_end) - 1].flatten()
-        observation[-5] = -row_delta / self.obs_rows  # TODO: might have to account for larger grid
-        observation[-4] = -col_delta / self.obs_cols  # TODO: might have to account for larger grid
-        observation[-3] = (dest_r - r) / self.rows    # TODO: might have to account for larger grid
-        observation[-2] = (dest_c - c) / self.cols    # TODO: might have to account for larger grid
-        observation[-1] = agent_id / self.num_agents
+        grid_observation[obs_start_row:obs_end_row, obs_start_col:obs_end_col] = \
+            self.grid[grid_start_row:grid_end_row, grid_start_col:grid_end_col]
 
-        return observation
-
-    def __padded_observation(self, agent_id):
-        agent = self.agents.get(agent_id)
-        if agent.done:
-            return None
-
-        r, c = agent.location
-        dest_r, dest_c = self.nets.get(agent.net_id).end
-        row_start = r - self._observation_row_start_offset
-        row_end = r + self._observation_row_end_offset
-        row_start_delta = 0
-        row_end_delta = 0
-        if row_start < 0:
-            row_start_delta = -row_start
-        elif row_end > self.rows:
-            row_end_delta = self.rows - row_end
-        row_start += row_start_delta
-        row_end += row_end_delta
-
-        col_start = c - self._observation_col_start_offset
-        col_end = c + self._observation_col_end_offset
-        col_start_delta = 0
-        col_end_delta = 0
-        if col_start < 0:
-            col_start_delta = -col_start
-        elif col_end > self.cols:
-            col_end_delta = self.cols - col_end
-        col_start += col_start_delta
-        col_end += col_end_delta
-
-        row_start *= 2
-        row_end = (row_end * 2) - 1
-        row_start_delta *= 2
-        row_end_delta *= 2
-
-        col_start *= 2
-        col_end = (col_end * 2) - 1
-        col_start_delta *= 2
-        col_end_delta *= 2
-
-        grid_observation = np.ones(shape=((2 * self.obs_rows - 1), (2 * self.obs_cols - 1)), dtype=np.float32)
-
-        grid_observation[row_start_delta:(2 * self.obs_rows - 1) + row_end_delta, col_start_delta:(2 * self.obs_cols - 1) + col_end_delta] \
-            = self.grid[row_start:row_end, col_start:col_end]
-        agent_info = np.zeros(shape=3, dtype=np.float32)
+        agent_info = np.zeros(shape=2, dtype=np.float32)
         agent_info[0] = (dest_r - r) / self.rows
         agent_info[1] = (dest_c - c) / self.cols
-        agent_info[2] = agent_id
 
         observation = np.concatenate((grid_observation.flatten(), agent_info))
 
         return observation
 
+
 if __name__ == '__main__':
-    env = BinaryPCBBoard("v_small.txt")
-    print(env.step({0: 1}))
-    print(env.step({0: 1}))
-    print(env.step({0: 2}))
-    print(env.step({0: 3}))
-    print(env.step({0: 4}))
-    print(env.step({0: 4}))
-    print(env.step({0: 4}))
+    env = BinaryPCBBoard(5, 5, rand_nets=False, filename="../main_project/envs/small/5x5_0.txt")
+    obs = env.reset()
+    obs, r, d, _ = env.step(4)
+    obs, r, d, _ = env.step(4)
+    obs, r, d, _ = env.step(7)
+    obs, r, d, _ = env.step(7)
+    obs, r, d, _ = env.step(6)
+    obs, r, d, _ = env.step(5)
+    obs, r, d, _ = env.step(5)
+    obs, r, d, _ = env.step(5)
+    obs, r, d, _ = env.step(5)
+    obs, r, d, _ = env.step(5)
+    obs, r, d, _ = env.step(5)
+    env.render_board()
+
