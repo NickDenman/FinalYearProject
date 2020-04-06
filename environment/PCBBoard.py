@@ -6,13 +6,15 @@ import gym
 import numpy as np
 import cairocffi as cairo
 
+from environment.GridCells import GridCells
+from environment.Net import Net
+from environment.net_gen import NetGen
+
 FINAL_REWARD = 10.0
-NET_REWARD = 0.0
+NET_REWARD = 2.0
 STEP_REWARD = -1.0
-INVALID_ACTION_REWARD = -0.8
 DIAGONAL_REWARD = -0.4  # diagonal lines are of length √2 ~= 1.4
 DIRECTION_CHANGE_FACTOR = 0.0
-NO_MOVE = -0.6
 
 actions = {0: (0, 0),
            1: (-1, 0),
@@ -37,40 +39,44 @@ blue = colours.get(0)
 
 
 def read_file(filename):
-    file_content = []
+    nets = {}
     with open(filename) as file:
         for idx, line in enumerate(file):
-            file_content.append(line)
+            x = line.split(", ")
+            nets[idx] = Net(idx, (int(x[0]), int(x[1])), (int(x[2]), int(x[3])))
 
-    nets = {}
-    net_id = 0
-    for net in range(4, len(file_content)):
-        x = file_content[net].split(", ")
-        nets[net_id] = (Net(net_id, (int(x[0]), int(x[1])), (int(x[2]), int(x[3]))))
-        net_id += 1
-
-    return int(file_content[0]), int(file_content[1]), int(file_content[2]), int(file_content[3]), nets
+    return nets
 
 
 class PCBBoard(abc.ABC, gym.Env):
-    def __init__(self, rows, cols, grid_rows, grid_cols, obs_rows, obs_cols, nets):
+    def __init__(self, rows, cols, grid_rows, grid_cols, obs_rows, obs_cols, rand_nets, min_nets=None, max_nets=None, filename=None):
         super(PCBBoard, self).__init__()
-        self.grid = np.zeros(shape=(grid_rows, grid_cols), dtype=np.float32)
+        self.MAX_OBS_ROWS = 10
+        self.MAX_OBS_COLS = 10
+        self.middle_obs_row = self.MAX_OBS_ROWS // 2
+        self.middle_obs_col = self.MAX_OBS_COLS // 2
+        self.grid = np.full(shape=(grid_rows, grid_cols), fill_value=GridCells.BLANK.value, dtype=np.float32)
         self.rows = rows
         self.cols = cols
-        self.obs_rows = obs_rows if obs_rows < rows else rows
-        self.obs_cols = obs_cols if obs_cols < cols else cols
+        self.obs_rows = min(obs_rows, rows, self.MAX_OBS_ROWS)
+        self.obs_cols = min(obs_cols, cols, self.MAX_OBS_COLS)
         self._observation_row_start_offset = math.floor(self.obs_rows / 2)
         self._observation_row_end_offset = math.ceil(self.obs_rows / 2)
         self._observation_col_start_offset = math.floor(self.obs_cols / 2)
         self._observation_col_end_offset = math.ceil(self.obs_cols / 2)
         self.agent = None
-        self.nets = nets
-        self.total_nets = len(nets)
+        self.rand_nets = rand_nets
+        if rand_nets:
+            self.nets = NetGen.generate_board(rows, cols, min_nets, max_nets)
+        else:
+            self.nets = read_file(filename)
+
+        self.min_nets = min_nets
+        self.max_nets = max_nets
+        self.total_nets = len(self.nets)
         self.cur_net_id = 0
         self.total_reward = 0.0
 
-        # self.observation_space = gym.spaces.Box(low=0, high=20, shape=(self.num_agents, self.get_observation_size(),), dtype=np.float32)
         self.observation_space = gym.spaces.Box(low=0, high=20, shape=(self.get_observation_size(),), dtype=np.float32)
         self.action_space = gym.spaces.Discrete(self.get_action_size())
 
@@ -78,7 +84,7 @@ class PCBBoard(abc.ABC, gym.Env):
         self.initialise_grid()
 
         self.current_step = 0
-        self.total_steps = self.rows * self.cols * 2
+        self.total_steps = self.rows * self.cols * 4
 
     @abc.abstractmethod
     def get_observation_size(self):
@@ -105,30 +111,20 @@ class PCBBoard(abc.ABC, gym.Env):
         if self.board_complete():
             r += FINAL_REWARD
 
-        if self.agent.moved:
-            r += self.dir_change_reward(self.agent)
+        r += self.dir_change_reward(self.agent)
 
-            if self.agent.net_done:
-                # print("net")
-                # self.render_board()
-                self.agent.net_done = False
-                r += NET_REWARD
-                self.agent.prev_action = 0
+        if self.agent.net_done:
+            self.agent.net_done = False
+            r += NET_REWARD
+            self.agent.prev_action = 0
 
-            if self.agent.prev_action % 2 == 0:
-                r += DIAGONAL_REWARD
-        elif self.agent.done:
-            pass
-        else:
-            r += NO_MOVE
-
-        if self.agent.invalid_move:
-            r += INVALID_ACTION_REWARD
+        if self.agent.prev_action % 2 == 0:
+            r += DIAGONAL_REWARD
 
         return r
 
     def board_complete(self):
-        return functools.reduce(lambda a, b: a & b, [c.done for _, c in self.agents.items()])
+        return self.agent.done
 
     def initialise_agent(self):
         agent = Agent()
@@ -156,9 +152,11 @@ class PCBBoard(abc.ABC, gym.Env):
         return r + r_delta, c + c_delta
 
     def reset(self):
-        self.grid.fill(0)
+        self.grid.fill(GridCells.BLANK.value)
         self.cur_net_id = 0
         self.current_step = 0
+        if self.rand_nets:
+            self.nets = NetGen.generate_board(self.rows, self.cols, self.min_nets, self.max_nets)
         for _, net in self.nets.items():
             net.reset()
         self.agent.reset()
@@ -166,7 +164,7 @@ class PCBBoard(abc.ABC, gym.Env):
         self.initialise_grid()
         self.total_reward = 0.0
 
-        return self.observe(0)
+        return self.observe()
 
     # TODO: bug here because it doesn't learn at all when this is used?
     def dir_change_reward(self, agent):
@@ -206,10 +204,10 @@ class PCBBoard(abc.ABC, gym.Env):
 
         for net_id, net in self.nets.items():
             row, col = self.global_to_render(net.start, pixel_height, pixel_width)
-            self.render_net_endpoints(cr, row, col, radius, net.agent_id)
+            self.render_net_endpoints(cr, row, col, radius)
 
             row, col = self.global_to_render(net.end, pixel_height, pixel_width)
-            self.render_net_endpoints(cr, row, col, radius, net.agent_id)
+            self.render_net_endpoints(cr, row, col, radius)
 
             if net.path:
                 cr.new_path()
@@ -244,33 +242,21 @@ class PCBBoard(abc.ABC, gym.Env):
         r, c = pos
         return ((r * 2) + 1) * pixel_height, ((c * 2) + 1) * pixel_width
 
-    def render_net_endpoints(self, cr, row, col, radius, agent_id):
-        (r, g, b) = self.get_colour(agent_id)
+    def render_net_endpoints(self, cr, row, col, radius):
+        (r, g, b) = self.get_colour()
         cr.set_source_rgb(r, g, b)
 
         cr.arc(col, row, radius, 0, 2 * math.pi)
         cr.stroke()
 
-    def get_colour(self, colour_id):
-        return colours.get(colour_id, (1.0, 1.0, 1.0))
-
-
-class Net:
-    def __init__(self, net_id, start, end):
-        self.net_id = net_id
-        self.start = start
-        self.end = end
-        self.path = []
-
-    def reset(self):
-        self.path.clear()
+    def get_colour(self):
+        return blue
 
 
 class Agent:
     def __init__(self):
         self.location = (-1, -1)
         self.net_id = -1
-        self.moved = False
         self.done = False
         self.net_done = False
         self.prev_action = 0
@@ -280,7 +266,6 @@ class Agent:
     def reset(self):
         self.location = (-1, -1)
         self.net_id = -1
-        self.moved = False
         self.done = False
         self.net_done = False
         self.prev_action = 0

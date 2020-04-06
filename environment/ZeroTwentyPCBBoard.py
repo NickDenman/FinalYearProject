@@ -13,16 +13,15 @@ opposite_actions = {1: 5,
 
 
 class ZeroTwentyPCBBoard(pcb.PCBBoard):
-    def __init__(self, filename, padded=True):
-        rows, cols, obs_rows, obs_cols, nets = pcb.read_file(filename)
+    def __init__(self, rows, cols, obs_rows, obs_cols, rand_nets=True, min_nets=None, max_nets=None, filename=None, padded=True):
         self.padded = padded
-        super().__init__(rows, cols, rows, cols, obs_rows, obs_cols, nets)
+        super().__init__(rows, cols, rows, cols, obs_rows, obs_cols, rand_nets=rand_nets, min_nets=min_nets, max_nets=max_nets, filename=filename)
 
     def get_observation_size(self):
         if self.padded:
-            return self.obs_rows * self.obs_cols + 2
+            return self.MAX_OBS_ROWS * self.MAX_OBS_COLS + 2
         else:
-            return self.obs_rows * self.obs_cols + 4
+            return self.MAX_OBS_ROWS * self.MAX_OBS_COLS + 4
 
     def initialise_grid(self):
         for _, net in self.nets.items():
@@ -38,13 +37,10 @@ class ZeroTwentyPCBBoard(pcb.PCBBoard):
 
         if self.agent.done:
             pass
-        elif action == 0:
-            self.agent.moved = False
-        elif not self.agent.invalid_move:
-            self.agent.prev_prev_action = self.agent.prev_action
         else:
+            if not self.agent.invalid_move:
+                self.agent.prev_prev_action = self.agent.prev_action
             self.agent.prev_action = action
-            self.agent.moved = True
 
             if self.is_valid_move(action):
                 self.agent.invalid_move = False
@@ -71,7 +67,6 @@ class ZeroTwentyPCBBoard(pcb.PCBBoard):
                         self.agent.done = True
                     else:
                         self.agent.net_id = new_net.net_id
-                        new_net.agent_id = self.agent.agent_id
                         self.agent.location = new_net.start
                         self.grid[self.agent.location] = GridCells.AGENT.value
 
@@ -94,7 +89,7 @@ class ZeroTwentyPCBBoard(pcb.PCBBoard):
 
         # Check if new position is free/not the destination
         net = self.nets.get(self.agent.net_id)
-        if self.grid[next_r, next_c] != 0.0 and ((next_r, next_c) != net.end):
+        if self.grid[next_r, next_c] != GridCells.BLANK.value and ((next_r, next_c) != net.end):
             return False
 
         # Check if diagonal lines cross
@@ -156,7 +151,7 @@ class ZeroTwentyPCBBoard(pcb.PCBBoard):
 
     def __padded_observation(self):
         if self.agent.done:
-            return np.full(shape=self.get_observation_size(), fill_value=GridCells.BLANK.value, dtype=np.float32)
+            return np.full(shape=self.get_observation_size(), fill_value=GridCells.OBSTACLE.value, dtype=np.float32)
 
         r, c = self.agent.location
         dest_r, dest_c = self.nets.get(self.agent.net_id).end
@@ -182,10 +177,14 @@ class ZeroTwentyPCBBoard(pcb.PCBBoard):
         col_start += col_start_delta
         col_end += col_end_delta
 
-        grid_observation = np.full(shape=(self.obs_rows, self.obs_cols), fill_value=GridCells.OBSTACLE.value, dtype=np.float32)
+        grid_observation = np.full(shape=(self.MAX_OBS_ROWS, self.MAX_OBS_COLS), fill_value=GridCells.OBSTACLE.value, dtype=np.float32)
 
-        grid_observation[row_start_delta:self.obs_rows + row_end_delta, col_start_delta:self.obs_cols + col_end_delta] \
-            = self.grid[row_start:row_end, col_start:col_end]
+        obs_start_r = self.middle_obs_row - self._observation_row_start_offset + row_start_delta
+        obs_end_r = self.middle_obs_row + self._observation_row_end_offset + row_end_delta
+        obs_start_c = self.middle_obs_col - self._observation_col_start_offset + col_start_delta
+        obs_end_c = self.middle_obs_col + self._observation_col_end_offset + col_end_delta
+
+        grid_observation[obs_start_r:obs_end_r, obs_start_c:obs_end_c] = self.grid[row_start:row_end, col_start:col_end]
         grid_observation /= len(GridCells)
         agent_info = np.zeros(shape=2, dtype=np.float32)
         agent_info[0] = (dest_r - r) / self.rows

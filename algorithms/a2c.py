@@ -13,37 +13,6 @@ class A2C:
         self.max_grad_norm = max_grad_norm
         self.optimiser = optim.Adam(network.parameters(), lr=self.lr, eps=self.eps)
 
-    # def update(self, rollouts):
-    #     advantages = rollouts.returns[:-1] - rollouts.values[:-1]
-    #     # advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-5)
-    #
-    #     value_loss_epoch = 0
-    #     action_loss_epoch = 0
-    #     dist_entropy_epoch = 0
-    #
-    #     data_generator = rollouts.feed_forward_generator(advantages, self.num_mini_batch)
-    #     for sample in data_generator:
-    #         obs_batch, actions_batch, values_batch, return_batch, _, advantage_batch = sample
-    #         values, action_log_probs, dist_entropy = self.network.evaluate(obs_batch, actions_batch)
-    #
-    #         value_loss = advantage_batch.pow(2).mean()
-    #         action_loss = -(advantage_batch.detach() * action_log_probs).mean()
-    #
-    #         self.optimiser.zero_grad()
-    #         (value_loss * self.value_coef + action_loss - dist_entropy * self.entropy_coef).backward()
-    #         nn.utils.clip_grad_norm_(self.network.parameters(), self.max_grad_norm)
-    #         self.optimiser.step()
-    #
-    #         value_loss_epoch += value_loss.item()
-    #         action_loss_epoch += action_loss.item()
-    #         dist_entropy_epoch += dist_entropy.item()
-    #
-    #     value_loss_epoch /= self.num_mini_batch
-    #     action_loss_epoch /= self.num_mini_batch
-    #     dist_entropy_epoch /= self.num_mini_batch
-    #
-    #     return value_loss_epoch, action_loss_epoch, dist_entropy_epoch
-
     def update(self, rollouts):
         obs_shape = rollouts.obs_shape
         action_shape = rollouts.action_shape

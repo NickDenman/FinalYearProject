@@ -58,7 +58,7 @@ def get_args():
     parser.add_argument(
         '--entropy-coef',
         type=float,
-        default=0.01,
+        default=0.05,
         help='entropy term coefficient (default: 0.01)')
     parser.add_argument(
         '--value-loss-coef',
@@ -68,7 +68,7 @@ def get_args():
     parser.add_argument(
         '--max-grad-norm',
         type=float,
-        default=0.5,
+        default=0.3,
         help='max norm of gradients (default: 0.5)')
     parser.add_argument(
         '--seed', type=int, default=1, help='random seed (default: 1)')
@@ -80,7 +80,7 @@ def get_args():
     parser.add_argument(
         '--num-steps',
         type=int,
-        default=10,
+        default=100,
         help='number of forward steps in A2C (default: 10)')
     parser.add_argument(
         '--ppo-epoch',
@@ -90,8 +90,8 @@ def get_args():
     parser.add_argument(
         '--num-mini-batch',
         type=int,
-        default=32,
-        help='number of batches for ppo (default: 32)')
+        default=4,
+        help='number of batches for ppo (default: 4)')
     parser.add_argument(
         '--clip-param',
         type=float,
@@ -107,6 +107,36 @@ def get_args():
         type=int,
         default=100,
         help='save interval, one save per n updates (default: 100)')
+    parser.add_argument(
+        '--rows',
+        type=int,
+        default=10,
+        help='rows in board (default: 10)')
+    parser.add_argument(
+        '--cols',
+        type=int,
+        default=10,
+        help='cols in board (default: 10)')
+    parser.add_argument(
+        '--obs-rows',
+        type=int,
+        default=5,
+        help='rows in board observation (default: 5)')
+    parser.add_argument(
+        '--obs-cols',
+        type=int,
+        default=5,
+        help='cols in board observation (default: 5)')
+    parser.add_argument(
+        '--min-nets',
+        type=int,
+        default=3,
+        help='min nets on board (default: 3)')
+    parser.add_argument(
+        '--max-nets',
+        type=int,
+        default=7,
+        help='max nets on board (default: 7)')
     parser.add_argument(
         '--eval-interval',
         type=int,

@@ -6,19 +6,19 @@ from main_project.utils import init
 
 
 class ACNetwork(nn.Module):
-    def __init__(self, obs_shape, action_size, hidden_size):
+    def __init__(self, obs_shape, action_size, hidden_size1, hidden_size2):
         super().__init__()
         init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.constant_(x, 0), np.sqrt(2))
 
         self.actor = nn.Sequential(
-            init_(nn.Linear(obs_shape[0], hidden_size)), nn.Tanh(),
-            init_(nn.Linear(hidden_size, hidden_size)), nn.Tanh(),
-            init_(nn.Linear(hidden_size, action_size)))
+            init_(nn.Linear(obs_shape[0], hidden_size1)), nn.ReLU(),
+            init_(nn.Linear(hidden_size1, hidden_size2)), nn.ReLU(),
+            init_(nn.Linear(hidden_size2, action_size)))
 
         self.critic = nn.Sequential(
-            init_(nn.Linear(obs_shape[0], hidden_size)), nn.Tanh(),
-            init_(nn.Linear(hidden_size, hidden_size)), nn.Tanh(),
-            init_(nn.Linear(hidden_size, 1)))
+            init_(nn.Linear(obs_shape[0], hidden_size1)), nn.ReLU(),
+            init_(nn.Linear(hidden_size1, hidden_size2)), nn.ReLU(),
+            init_(nn.Linear(hidden_size2, 1)))
 
         self.dist = FixedCategorical
 

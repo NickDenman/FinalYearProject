@@ -2,7 +2,7 @@ from enum import Enum
 
 
 class GridCells(Enum):
-    BLANK = 0
+    BLANK = 20
     N = 1
     NE = 2
     E = 3
@@ -21,4 +21,4 @@ class GridCells(Enum):
     VIA_SW = 16
     VIA_W = 17
     VIA_NW = 18
-    OBSTACLE = 19
+    OBSTACLE = 0
