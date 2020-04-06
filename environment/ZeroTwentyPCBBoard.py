@@ -13,9 +13,9 @@ opposite_actions = {1: 5,
 
 
 class ZeroTwentyPCBBoard(pcb.PCBBoard):
-    def __init__(self, rows, cols, obs_rows, obs_cols, rand_nets=True, min_nets=None, max_nets=None, filename=None, padded=True):
+    def __init__(self, rows, cols, rand_nets=True, min_nets=None, max_nets=None, filename=None, padded=True):
         self.padded = padded
-        super().__init__(rows, cols, rows, cols, obs_rows, obs_cols, rand_nets=rand_nets, min_nets=min_nets, max_nets=max_nets, filename=filename)
+        super().__init__(rows, cols, rows, cols, blank_value=GridCells.BLANK.value, rand_nets=rand_nets, min_nets=min_nets, max_nets=max_nets, filename=filename)
 
     def get_observation_size(self):
         if self.padded:
@@ -151,41 +151,26 @@ class ZeroTwentyPCBBoard(pcb.PCBBoard):
 
     def __padded_observation(self):
         if self.agent.done:
-            return np.full(shape=self.get_observation_size(), fill_value=GridCells.OBSTACLE.value, dtype=np.float32)
-
-        r, c = self.agent.location
+            return np.full(shape=self.get_observation_size(), fill_value=self.blank_value, dtype=np.float32)
         dest_r, dest_c = self.nets.get(self.agent.net_id).end
-        row_start = r - self._observation_row_start_offset
-        row_end = r + self._observation_row_end_offset
-        row_start_delta = 0
-        row_end_delta = 0
-        if row_start < 0:
-            row_start_delta = -row_start
-        elif row_end > self.rows:
-            row_end_delta = self.rows - row_end
-        row_start += row_start_delta
-        row_end += row_end_delta
+        centre_obs_row = self.obs_rows // 2
+        centre_obs_col = self.obs_cols // 2
+        r, c = self.agent.location
+        grid_observation = np.full(shape=(self.obs_rows, self.obs_cols), fill_value=self.blank_value, dtype=np.float32)
 
-        col_start = c - self._observation_col_start_offset
-        col_end = c + self._observation_col_end_offset
-        col_start_delta = 0
-        col_end_delta = 0
-        if col_start < 0:
-            col_start_delta = -col_start
-        elif col_end > self.cols:
-            col_end_delta = self.cols - col_end
-        col_start += col_start_delta
-        col_end += col_end_delta
+        obs_start_row = max(0, centre_obs_row - r)
+        obs_end_row = min(self.obs_rows, centre_obs_row + self.rows - r)
+        obs_start_col = max(0, centre_obs_col - c)
+        obs_end_col = min(self.obs_cols, centre_obs_col + self.cols - c)
 
-        grid_observation = np.full(shape=(self.MAX_OBS_ROWS, self.MAX_OBS_COLS), fill_value=GridCells.OBSTACLE.value, dtype=np.float32)
+        grid_start_row = max(0, r - centre_obs_row)
+        grid_end_row = min(self.rows, r + self.obs_rows - centre_obs_row)
+        grid_start_col = max(0, c - centre_obs_col)
+        grid_end_col = min(self.cols, c + self.obs_cols - centre_obs_col)
 
-        obs_start_r = self.middle_obs_row - self._observation_row_start_offset + row_start_delta
-        obs_end_r = self.middle_obs_row + self._observation_row_end_offset + row_end_delta
-        obs_start_c = self.middle_obs_col - self._observation_col_start_offset + col_start_delta
-        obs_end_c = self.middle_obs_col + self._observation_col_end_offset + col_end_delta
+        grid_observation[obs_start_row:obs_end_row, obs_start_col:obs_end_col] = \
+            self.grid[grid_start_row:grid_end_row, grid_start_col:grid_end_col]
 
-        grid_observation[obs_start_r:obs_end_r, obs_start_c:obs_end_c] = self.grid[row_start:row_end, col_start:col_end]
-        grid_observation /= len(GridCells)
         agent_info = np.zeros(shape=2, dtype=np.float32)
         agent_info[0] = (dest_r - r) / self.rows
         agent_info[1] = (dest_c - c) / self.cols

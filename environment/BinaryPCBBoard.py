@@ -121,21 +121,3 @@ class BinaryPCBBoard(pcb.PCBBoard):
         observation = np.concatenate((grid_observation.flatten(), agent_info))
 
         return observation
-
-
-if __name__ == '__main__':
-    env = BinaryPCBBoard(5, 5, rand_nets=False, filename="../main_project/envs/small/5x5_0.txt")
-    obs = env.reset()
-    obs, r, d, _ = env.step(4)
-    obs, r, d, _ = env.step(4)
-    obs, r, d, _ = env.step(7)
-    obs, r, d, _ = env.step(7)
-    obs, r, d, _ = env.step(6)
-    obs, r, d, _ = env.step(5)
-    obs, r, d, _ = env.step(5)
-    obs, r, d, _ = env.step(5)
-    obs, r, d, _ = env.step(5)
-    obs, r, d, _ = env.step(5)
-    obs, r, d, _ = env.step(5)
-    env.render_board()
-
