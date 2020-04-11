@@ -1,6 +1,8 @@
 import glob
 import os
 
+from torch import nn
+
 
 def cleanup_log_dir(log_dir):
     try:
@@ -22,3 +24,9 @@ def update_linear_schedule(optimizer, epoch, total_num_epochs, initial_lr):
     lr = initial_lr - (initial_lr * (epoch / float(total_num_epochs)))
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
+
+
+class Flatten(nn.Module):
+    def forward(self, x):
+        return x.view(x.size(0), -1)
+

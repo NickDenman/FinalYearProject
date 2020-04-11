@@ -13,8 +13,8 @@ from environment.ZeroTwentyPCBBoard import ZeroTwentyPCBBoard
 from environment.pytorch_env import make_vec_env, make_gym_env
 from main_project import utils
 from main_project.args import get_args
-from main_project.model import ACNetwork
-from main_project.storage import RolloutStorage
+from main_project.model_linear import ACNetwork
+from main_project.storage_conv import RolloutStorage
 from main_project.utils import cleanup_log_dir
 
 

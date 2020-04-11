@@ -148,6 +148,11 @@ def get_args():
         default=1e8,
         help='number of environment steps to train (default: 10e8)')
     parser.add_argument(
+        '--linear-layers',
+        type=int,
+        nargs='+',
+        help='number of layers in linear network')
+    parser.add_argument(
         '--log-dir',
         default='./logs/',
         help='directory to save agent logs (default: /tmp/gym)')
@@ -160,6 +165,11 @@ def get_args():
         action='store_true',
         default=False,
         help='disables CUDA training')
+    parser.add_argument(
+        '--conv',
+        action='store_true',
+        default=False,
+        help='Use convolutional network.')
     parser.add_argument(
         '--use-linear-lr-decay',
         action='store_true',

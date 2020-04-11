@@ -1,3 +1,4 @@
+import gym
 import numpy as np
 import environment.PCBBoard as pcb
 from environment.GridCells import GridCells
@@ -10,12 +11,25 @@ opposite_actions = {1: 5,
                     6: 2,
                     7: 3,
                     8: 4, }
+grid_matrix = [[-1,  1, 2,  3,  4,  5,  6,  7,  8,  9 ],
+                [1, -1, 10, 11, 12, 13, 14, 15, 16, 17],
+                [2, 10, -1, 18, 19, 20, 21, 22, 23, 24],
+                [3, 11, 18, -1, 25, 26, 27, 28, 29, 30],
+                [4, 12, 19, 25, -1, 31, 32, 33, 34, 35],
+                [5, 13, 20, 26, 31, -1, 36, 37, 38, 39],
+                [6, 14, 21, 27, 32, 36, -1, 40, 41, 42],
+                [7, 15, 22, 28, 33, 37, 40, -1, 43, 44],
+                [8, 16, 23, 29, 34, 38, 41, 43, -1, 45],
+                [9, 17, 24, 30, 35, 39, 42, 44, 45, -1],]
+MAX_VALUE = max(max(grid_matrix)) + 1
 
 
 class ZeroTwentyPCBBoard(pcb.PCBBoard):
     def __init__(self, rows, cols, rand_nets=True, min_nets=None, max_nets=None, filename=None, padded=True):
         self.padded = padded
-        super().__init__(rows, cols, rows, cols, blank_value=GridCells.BLANK.value, obstacle_value=GridCells.OBSTACLE.value, rand_nets=rand_nets, min_nets=min_nets, max_nets=max_nets, filename=filename)
+        super().__init__(rows, cols, rows, cols, blank_value=MAX_VALUE, obstacle_value=0.0, rand_nets=rand_nets, min_nets=min_nets, max_nets=max_nets, filename=filename)
+        self.observation_space = gym.spaces.Tuple((gym.spaces.Box(low=0, high=1, shape=(1, self.obs_rows, self.obs_cols), dtype=np.float32),
+                                                   gym.spaces.Box(low=0, high=1, shape=(2,), dtype=np.float32)))
 
     def get_observation_size(self):
         if self.padded:
@@ -27,12 +41,10 @@ class ZeroTwentyPCBBoard(pcb.PCBBoard):
         for _, net in self.nets.items():
             row_s, col_s = net.start
             row_e, col_e = net.end
-            self.grid[row_s, col_s] = GridCells.VIA.value
-            self.grid[row_e, col_e] = GridCells.VIA.value
+            self.grid[row_s, col_s] = 9
+            self.grid[row_e, col_e] = 9
 
-        self.grid[self.agent.location] = GridCells.AGENT.value
-
-    def step(self, action):
+    def step(self, action: int):
         self.current_step += 1
 
         if self.agent.done:
@@ -47,20 +59,14 @@ class ZeroTwentyPCBBoard(pcb.PCBBoard):
                 r, c = self.agent.location
                 r_prime, c_prime = self.get_next_pos(self.agent.location, action)
 
-                # Start of net update treated differently
-                if self.nets.get(self.agent.net_id).start == self.agent.location:
-                    self.grid[r, c] = GridCells.VIA.value + action
-                else:
-                    self.grid[r, c] = action
+                self.grid[r, c] = grid_matrix[self.grid[r, c] % MAX_VALUE][action]
 
-                self.grid[r_prime, c_prime] = GridCells.AGENT.value
+                self.grid[r_prime, c_prime] = grid_matrix[self.grid[r_prime, c_prime] % MAX_VALUE][opposite_actions[action]]
                 self.agent.location = (r_prime, c_prime)
 
                 self.nets.get(self.agent.net_id).path.append(action)
 
                 if self.is_net_complete():
-                    self.grid[r_prime, c_prime] = GridCells.VIA.value + opposite_actions.get(action)
-
                     self.agent.net_done = True
                     new_net = self.get_new_net()
                     if new_net is None:
@@ -68,17 +74,17 @@ class ZeroTwentyPCBBoard(pcb.PCBBoard):
                     else:
                         self.agent.net_id = new_net.net_id
                         self.agent.location = new_net.start
-                        self.grid[self.agent.location] = GridCells.AGENT.value
 
             else:
                 self.agent.invalid_move = True
 
         reward = self.get_reward()
         self.total_reward += reward
-        done = self.board_complete() or self.current_step > self.total_steps
+        done = self.board_complete()
+        time_out = self.current_step > self.total_steps
         obs = self.observe()
 
-        return obs, reward, done, {}
+        return obs, reward, done or time_out, done
 
     def is_valid_move(self, action):
         next_r, next_c = self.get_next_pos(self.agent.location, action)
@@ -89,7 +95,7 @@ class ZeroTwentyPCBBoard(pcb.PCBBoard):
 
         # Check if new position is free/not the destination
         net = self.nets.get(self.agent.net_id)
-        if self.grid[next_r, next_c] != GridCells.BLANK.value and ((next_r, next_c) != net.end):
+        if self.grid[next_r, next_c] != MAX_VALUE and ((next_r, next_c) != net.end):
             return False
 
         # Check if diagonal lines cross
@@ -101,8 +107,7 @@ class ZeroTwentyPCBBoard(pcb.PCBBoard):
             a1 = ((action + 7 - (2 * delta_r * delta_c)) % 8) + 1
             a2 = ((action + 7 + (2 * delta_r * delta_c)) % 8) + 1
 
-            if self.grid[r + delta_r, c] % GridCells.VIA.value == a1 or \
-                    self.grid[r, c + delta_c] % GridCells.VIA.value == a2:
+            if self.grid[r + delta_r, c] in grid_matrix[a1] or self.grid[r, c + delta_c] in grid_matrix[a2]:
                 return False
 
         return True
@@ -151,7 +156,7 @@ class ZeroTwentyPCBBoard(pcb.PCBBoard):
 
     def __padded_observation(self):
         if self.agent.done:
-            return np.full(shape=self.get_observation_size(), fill_value=self.obstacle_value, dtype=np.float32)
+            return np.full(shape=(self.obs_rows, self.obs_cols), fill_value=self.obstacle_value, dtype=np.float32), np.zeros(shape=2, dtype=np.float)
         dest_r, dest_c = self.nets.get(self.agent.net_id).end
         centre_obs_row = self.obs_rows // 2
         centre_obs_col = self.obs_cols // 2
@@ -170,11 +175,10 @@ class ZeroTwentyPCBBoard(pcb.PCBBoard):
 
         grid_observation[obs_start_row:obs_end_row, obs_start_col:obs_end_col] = \
             self.grid[grid_start_row:grid_end_row, grid_start_col:grid_end_col]
+        grid_observation /= MAX_VALUE
 
         agent_info = np.zeros(shape=2, dtype=np.float32)
         agent_info[0] = (dest_r - r) / self.rows
         agent_info[1] = (dest_c - c) / self.cols
 
-        observation = np.concatenate((grid_observation.flatten(), agent_info))
-
-        return observation
+        return grid_observation, agent_info

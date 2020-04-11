@@ -5,14 +5,13 @@ import numpy as np
 class BinaryPCBBoard(pcb.PCBBoard):
     def __init__(self, rows, cols, rand_nets=True, min_nets=None, max_nets=None, filename=None, padded=True):
         self.padded = padded
-        fill_value = 0.0
-        super().__init__(rows, cols, (3 * rows) - 2, (3 * cols) - 2, fill_value=fill_value, rand_nets=rand_nets, min_nets=min_nets, max_nets=max_nets, filename=filename)
+        super().__init__(rows, cols, (3 * rows) - 2, (3 * cols) - 2, blank_value=0.0, obstacle_value=1.0, rand_nets=rand_nets, min_nets=min_nets, max_nets=max_nets, filename=filename)
 
     def get_observation_size(self):
         if self.padded:
-            return (3 * self.obs_rows - 2) * (3 * self.obs_cols - 2) + 3
+            return (3 * self.obs_rows - 2) * (3 * self.obs_cols - 2) + 2
         else:
-            return (3 * self.obs_rows - 2) * (3 * self.obs_cols - 2) + 5
+            return (3 * self.obs_rows - 2) * (3 * self.obs_cols - 2) + 4
 
     def initialise_grid(self):
         for _, net in self.nets.items():
