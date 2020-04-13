@@ -5,9 +5,9 @@ import numpy as np
 
 
 class BinaryPCBBoardConv(pcb.PCBBoard):
-    def __init__(self, rows, cols, rand_nets=True, min_nets=None, max_nets=None, filename=None, padded=True):
+    def __init__(self, rows, cols, rand_nets=True, filename=None, padded=True):
         self.padded = padded
-        super().__init__(rows, cols, (3 * rows) - 2, (3 * cols) - 2, blank_value=0.0, obstacle_value=1.0, rand_nets=rand_nets, min_nets=min_nets, max_nets=max_nets, filename=filename)
+        super().__init__(rows, cols, (3 * rows) - 2, (3 * cols) - 2, blank_value=0.0, obstacle_value=1.0, rand_nets=rand_nets, filename=filename)
         self.observation_space = gym.spaces.Tuple((gym.spaces.Box(low=0, high=1, shape=(1, (3 * self.obs_rows - 2), (3 * self.obs_cols - 2)), dtype=np.float32),
                                                    gym.spaces.Box(low=0, high=1, shape=(2,), dtype=np.float32)))
 

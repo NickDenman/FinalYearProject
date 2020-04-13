@@ -12,22 +12,33 @@ opposite_actions = {1: 5,
                     7: 3,
                     8: 4, }
 grid_matrix = [[-1,  1, 2,  3,  4,  5,  6,  7,  8,  9 ],
-                [1, -1, 10, 11, 12, 13, 14, 15, 16, 17],
-                [2, 10, -1, 18, 19, 20, 21, 22, 23, 24],
-                [3, 11, 18, -1, 25, 26, 27, 28, 29, 30],
-                [4, 12, 19, 25, -1, 31, 32, 33, 34, 35],
-                [5, 13, 20, 26, 31, -1, 36, 37, 38, 39],
-                [6, 14, 21, 27, 32, 36, -1, 40, 41, 42],
-                [7, 15, 22, 28, 33, 37, 40, -1, 43, 44],
-                [8, 16, 23, 29, 34, 38, 41, 43, -1, 45],
-                [9, 17, 24, 30, 35, 39, 42, 44, 45, -1],]
+               [ 1, -1, 10, 11, 12, 13, 14, 15, 16, 17],
+               [ 2, 10, -1, 18, 19, 20, 21, 22, 23, 24],
+               [ 3, 11, 18, -1, 25, 26, 27, 28, 29, 30],
+               [ 4, 12, 19, 25, -1, 31, 32, 33, 34, 35],
+               [ 5, 13, 20, 26, 31, -1, 36, 37, 38, 39],
+               [ 6, 14, 21, 27, 32, 36, -1, 40, 41, 42],
+               [ 7, 15, 22, 28, 33, 37, 40, -1, 43, 44],
+               [ 8, 16, 23, 29, 34, 38, 41, 43, -1, 45],
+               [ 9, 17, 24, 30, 35, 39, 42, 44, 45, -1],]
+
+grid_matrix_uniform = [[-1, 1, 2,  3,  4,  5,  6,  7,  8,  9],
+                       [1, -1, 11, 12, 13, 14, 15, 16, 17, 18],
+                       [2, 11, -1, 21, 22, 23, 24, 25, 26, 27],
+                       [3, 12, 21, -1, 31, 32, 33, 34, 35, 36],
+                       [4, 13, 22, 31, -1, 41, 42, 43, 44, 45],
+                       [5, 14, 23, 32, 41, -1, 51, 52, 53, 54],
+                       [6, 15, 24, 33, 42, 51, -1, 61, 62, 63],
+                       [7, 16, 25, 34, 43, 52, 61, -1, 71, 72],
+                       [8, 17, 26, 35, 44, 53, 62, 71, -1, 81],
+                       [9, 18, 27, 36, 45, 54, 63, 72, 81, -1],]
 MAX_VALUE = max(max(grid_matrix)) + 1
 
 
 class ZeroTwentyPCBBoard(pcb.PCBBoard):
-    def __init__(self, rows, cols, rand_nets=True, min_nets=None, max_nets=None, filename=None, padded=True):
+    def __init__(self, min_rows, min_cols, max_rows, max_cols, rand_nets=True, filename=None, padded=True):
         self.padded = padded
-        super().__init__(rows, cols, rows, cols, blank_value=MAX_VALUE, obstacle_value=0.0, rand_nets=rand_nets, min_nets=min_nets, max_nets=max_nets, filename=filename)
+        super().__init__(min_rows, min_cols, max_rows, max_cols, blank_value=MAX_VALUE, obstacle_value=0.0, rand_nets=rand_nets, filename=filename)
         self.observation_space = gym.spaces.Tuple((gym.spaces.Box(low=0, high=1, shape=(1, self.obs_rows, self.obs_cols), dtype=np.float32),
                                                    gym.spaces.Box(low=0, high=1, shape=(2,), dtype=np.float32)))
 

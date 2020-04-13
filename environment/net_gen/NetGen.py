@@ -132,7 +132,7 @@ def get_nets(grid):
         for y in range(tube_grid.h):
             if tube_grid[x, y] == 'x':
                 net_id = ids[uf.find((x, y))]
-                nets[net_id].append((y, x))
+                nets[net_id].append((x, y))
 
     net_list = {}
     for i, endpoints in nets.items():

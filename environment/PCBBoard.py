@@ -1,12 +1,11 @@
-import functools
 import abc
 import math
+import random
 
 import gym
 import numpy as np
 import cairocffi as cairo
 
-from environment.GridCells import GridCells
 from environment.Net import Net
 from environment.net_gen import NetGen
 
@@ -49,7 +48,7 @@ def read_file(filename):
 
 
 class PCBBoard(abc.ABC, gym.Env):
-    def __init__(self, rows, cols, grid_rows, grid_cols, rand_nets, obstacle_value, blank_value, min_nets=None, max_nets=None, filename=None):
+    def __init__(self, min_rows, min_cols, max_rows, max_cols, rand_nets, obstacle_value, blank_value, filename=None):
         super(PCBBoard, self).__init__()
         self.obstacle_value = obstacle_value
         self.blank_value = blank_value
@@ -57,9 +56,13 @@ class PCBBoard(abc.ABC, gym.Env):
         self.MAX_OBS_COLS = 10
         self.middle_obs_row = self.MAX_OBS_ROWS // 2
         self.middle_obs_col = self.MAX_OBS_COLS // 2
-        self.grid = np.full(shape=(grid_rows, grid_cols), fill_value=obstacle_value, dtype=np.int)
-        self.rows = rows
-        self.cols = cols
+        self.grid = None
+        self.rows = min_rows
+        self.cols = min_cols
+        self.min_rows = min_rows
+        self.min_cols = min_cols
+        self.max_rows = max_rows
+        self.max_cols = max_cols
         self.obs_rows = self.MAX_OBS_ROWS
         self.obs_cols = self.MAX_OBS_COLS
         self._observation_row_start_offset = math.floor(self.obs_rows / 2)
@@ -68,24 +71,19 @@ class PCBBoard(abc.ABC, gym.Env):
         self._observation_col_end_offset = math.ceil(self.obs_cols / 2)
         self.agent = None
         self.rand_nets = rand_nets
-        if rand_nets:
-            self.nets = NetGen.generate_board(rows, cols, min_nets, max_nets)
-        else:
+        if not rand_nets:
             self.nets = read_file(filename)
+            self.total_nets = len(self.nets)
 
-        self.min_nets = min_nets
-        self.max_nets = max_nets
-        self.total_nets = len(self.nets)
+        n = int((self.rows * self.cols) ** .5)
+        self.min_nets = n * 2 // 3
+        self.max_nets = n * 3 // 2
         self.cur_net_id = 0
         self.total_reward = 0.0
 
         self.observation_space = gym.spaces.Box(low=0, high=20, shape=(self.get_observation_size(),), dtype=np.float32)
         self.action_space = gym.spaces.Discrete(self.get_action_size())
 
-        self.initialise_agent()
-        self.initialise_grid()
-
-        self.current_step = 0
         self.total_steps = self.rows * self.cols * 4
 
     @abc.abstractmethod
@@ -103,6 +101,12 @@ class PCBBoard(abc.ABC, gym.Env):
     @abc.abstractmethod
     def observe(self):
         pass
+
+    def increase_env_size(self, min_dim, max_dim):
+        self.min_rows = min_dim
+        self.min_cols = min_dim
+        self.max_rows = max_dim
+        self.max_cols = max_dim
 
     def get_action_size(self):
         return len(actions)
@@ -154,14 +158,22 @@ class PCBBoard(abc.ABC, gym.Env):
         return r + r_delta, c + c_delta
 
     def reset(self):
-        self.grid.fill(self.blank_value)
         self.cur_net_id = 0
         self.current_step = 0
         if self.rand_nets:
+            self.rows = random.randint(self.min_rows, self.max_rows)
+            self.cols = random.randint(self.min_cols, self.max_cols)
+            n = int((self.rows * self.cols) ** .5)
+            self.min_nets = n * 2 // 3
+            self.max_nets = n * 3 // 2
             self.nets = NetGen.generate_board(self.rows, self.cols, self.min_nets, self.max_nets)
-        for _, net in self.nets.items():
-            net.reset()
-        self.agent.reset()
+            self.total_nets = len(self.nets)
+            self.total_steps = self.rows * self.cols * 4
+        else:
+            for _, net in self.nets.items():
+                net.reset()
+
+        self.grid = np.full(shape=(self.rows, self.cols), fill_value=self.blank_value, dtype=np.int)
         self.initialise_agent()
         self.initialise_grid()
         self.total_reward = 0.0
@@ -185,7 +197,10 @@ class PCBBoard(abc.ABC, gym.Env):
     def close(self):
         pass
 
-    def render_board(self, filename="pcb_render.png", width=1024, height=1024):
+    def render_board(self, filename="pcb_render.png", width=None, height=None):
+        width = int(1024 * (self.cols / max(self.rows, self.cols))) if width is None else width
+        height = int(1024 * (self.rows / max(self.rows, self.cols))) if height is None else height
+
         ims = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
         cr = cairo.Context(ims)
 

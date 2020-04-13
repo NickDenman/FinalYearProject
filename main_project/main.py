@@ -28,6 +28,7 @@ def load_network(args):
 
 def main(env):
     args = get_args()
+    print(args)
     torch.manual_seed(args.seed)
 
     log_dir = os.path.expanduser(args.log_dir)
@@ -35,15 +36,13 @@ def main(env):
 
     torch.set_num_threads(1)
 
-    envs = make_vec_env(env, args.rows, args.cols, args.min_nets, args.max_nets, args.seed, args.num_envs, conv=args.conv)
+    if args.curriculum:
+        envs = make_vec_env(env, args.min_rows, args.min_cols, args.min_rows, args.min_cols, args.seed, args.num_envs, conv=args.conv)
+    else:
+        envs = make_vec_env(env, args.min_rows, args.min_cols, args.max_rows, args.max_cols, args.seed, args.num_envs, conv=args.conv)
 
     if args.conv:
-        if len(args.linear_layers) == 1:
-            actor_critic = ACNetworkConv1(envs.observation_space.spaces, envs.action_space.n, args.linear_layers)
-        elif len(args.linear_layers) == 2:
-            actor_critic = ACNetworkConv2(envs.observation_space.spaces, envs.action_space.n, args.linear_layers)
-        else:
-            return
+        actor_critic = ACNetworkConv1(envs.observation_space.spaces, envs.action_space.n, args.linear_layers)
     else:
         actor_critic = ACNetworkLinear(envs.observation_space.shape, envs.action_space.n, args.linear_layers)
 
@@ -52,6 +51,14 @@ def main(env):
 
 
 def learn(actor_critic, agent, args, envs):
+    if args.curriculum:
+        rows = args.min_rows
+        cols = args.min_cols
+    else:
+        rows = args.max_rows
+        cols = args.max_cols
+    graduate = False
+
     writer = SummaryWriter(log_dir=args.log_dir)
     if args.conv:
         rollouts = RolloutStorageConv(args.num_steps, args.num_envs, envs.observation_space)
@@ -105,13 +112,33 @@ def learn(actor_critic, agent, args, envs):
         action_losses.append(action_loss)
         entropies.append(dist_entropy)
 
+        if args.curriculum and np.mean(boards_completed) > 0.85 and rows < args.max_rows and cols < args.max_cols:
+            rows += 1
+            cols += 1
+            envs.increase_env_size(rows, cols)
+            graduate = True
+
         result_rewards.append(np.mean(episode_rewards))
         result_completed.append(np.mean(boards_completed))
-        log_info(writer, update, num_updates, episode_rewards, boards_completed, actor_critic, value_losses, action_losses, entropies, args, result_rewards, result_completed)
+        log_info(writer, update, num_updates, episode_rewards, boards_completed, actor_critic, value_losses, action_losses, entropies, args, result_rewards, result_completed, rows, cols, graduate)
         rollouts.after_update()
 
 
-def log_info(writer, update, num_updates, episode_rewards, boards_completed, actor_critic, value_losses, action_losses, entropies, args, result_rewards, result_completed):
+def log_info(writer,
+             update,
+             num_updates,
+             episode_rewards,
+             boards_completed,
+             actor_critic,
+             value_losses,
+             action_losses,
+             entropies,
+             args,
+             result_rewards,
+             result_completed,
+             rows,
+             cols,
+             graduate):
     if (update % args.save_interval == 0 or update == num_updates - 1) and args.save_dir != "":
         save_path = os.path.join(args.save_dir, args.algo)
         try:
@@ -123,7 +150,7 @@ def log_info(writer, update, num_updates, episode_rewards, boards_completed, act
         pickle.dump(result_rewards, open("rewards_dump", "wb"))
         pickle.dump(result_completed, open("completed_dump", "wb"))
 
-    if (update % args.log_interval == 0) and len(episode_rewards) > 1:
+    if (update % args.log_interval == 0 or graduate) and len(episode_rewards) > 1:
         total_num_steps = (update + 1) * args.num_envs * args.num_steps
         v_loss = np.mean(value_losses)
         a_loss = np.mean(action_losses)
@@ -132,6 +159,9 @@ def log_info(writer, update, num_updates, episode_rewards, boards_completed, act
         writer.add_scalar('Loss/critic', v_loss, total_num_steps)
         writer.add_scalar('Loss/actor', a_loss, total_num_steps)
         writer.add_scalar('Entropy', e, total_num_steps)
+        writer.add_scalar('Curriculum/rows', rows, total_num_steps)
+        writer.add_scalar('Curriculum/cols', cols, total_num_steps)
+        writer.add_scalar('Curriculum/grid_cells', rows * cols, total_num_steps)
         writer.add_scalar('Results/mean', np.mean(episode_rewards), total_num_steps)
         writer.add_scalar('Results/percentage_routed', routed, total_num_steps)
         writer.flush()
@@ -204,4 +234,4 @@ if __name__ == "__main__":
     #     route_board(actor_critic, i)
     # route_board(actor_critic, 0)
 
-    main(BinaryPCBBoardConv)
+    main(ZeroTwentyPCBBoard)

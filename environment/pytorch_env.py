@@ -8,8 +8,8 @@ from gym import ObservationWrapper
 from gym.wrappers import TimeLimit
 
 
-def create_env(env, rows, cols, min_nets, max_nets, seed, idx, conv):
-    env = env(rows, cols, min_nets=min_nets, max_nets=max_nets, padded=True)
+def create_env(env, min_rows, min_cols, max_rows, max_cols, seed, idx, conv):
+    env = env(min_rows, min_cols, max_rows, max_cols, padded=True)
     # env = env(5, 5, rand_nets=False, filename="../main_project/envs/small/5x5_" + str(idx % 8) + ".txt", padded=True)
     # env = env(5, 5, rand_nets=False, filename="../main_project/envs/small/5x5_5.txt", padded=True)
 
@@ -21,8 +21,8 @@ def create_env(env, rows, cols, min_nets, max_nets, seed, idx, conv):
     return lambda: env
 
 
-def make_vec_env(env, rows, cols, min_nets, max_nets, seed, num_envs, normalise=False, conv=False):
-    envs = [create_env(env, rows, cols, min_nets, max_nets, seed, i, conv) for i in range(num_envs)]
+def make_vec_env(env, min_rows, min_cols, max_rows, max_cols, seed, num_envs, normalise=False, conv=False):
+    envs = [create_env(env, min_rows, min_cols, max_rows, max_cols, seed, i, conv) for i in range(num_envs)]
     envs = ShmemVecEnv(envs, context='fork')
 
     if normalise:

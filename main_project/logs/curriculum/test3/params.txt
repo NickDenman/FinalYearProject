@@ -1,0 +1,4 @@
+--algo ppo --use-gae --lr 1e-3 --num-env-steps=1000000000 --clip-param 0.2 --value-loss-coef 0.5 --num-envs 16 --num-steps 128 --num-mini-batch 4 --log-dir logs/curriculum/test3/ --save-dir ./trained_models/curriculum/test3/ --log-interval 10 --use-linear-lr-decay --entropy-coef 0.05 --min-rows 5 --min-cols 5 --max-rows 15 --max-cols 15 --linear-layers 1024 512 256 --conv --curriculum
+
+network architecture:
+   nn.Conv2d(1, 4, 3, stride=1, padding_mode='zeros') -> X -> 1024 -> 512 -> 256

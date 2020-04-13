@@ -4,6 +4,17 @@ import os
 from torch import nn
 
 
+def generate_linear_layers(input, hidden_sizes, output, init_):
+    layers = [init_(nn.Linear(input, hidden_sizes[0])), nn.ReLU()]
+    for i in range(len(hidden_sizes) - 1):
+        layers.append(init_(nn.Linear(hidden_sizes[i], hidden_sizes[i + 1])))
+        layers.append(nn.ReLU())
+    layers.append(init_(nn.Linear(hidden_sizes[-1], output)))
+    layers.append(nn.ReLU())
+
+    return layers
+
+
 def cleanup_log_dir(log_dir):
     try:
         os.makedirs(log_dir)

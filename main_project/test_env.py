@@ -2,7 +2,7 @@ from environment.BinaryPCBBoard import BinaryPCBBoard
 from environment.ZeroTwentyPCBBoard import ZeroTwentyPCBBoard
 
 if __name__ == "__main__":
-    board = ZeroTwentyPCBBoard(5, 5, rand_nets=False, filename="envs/small/5x5_5.txt", min_nets=4, max_nets=8, padded=True)
+    board = ZeroTwentyPCBBoard(5, 5, 7, 7, rand_nets=True, padded=True)
     obs = board.reset()
 
     for i, net in board.nets.items():

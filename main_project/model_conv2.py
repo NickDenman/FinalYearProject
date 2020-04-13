@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-from main_project.utils import init, Flatten
+from main_project.utils import init, Flatten, generate_linear_layers
 
 
 class ACNetwork(nn.Module):
@@ -12,21 +12,16 @@ class ACNetwork(nn.Module):
 
         # TODO: consider first conv2 with stride 1 and a max pooling layer
         self.conv = nn.Sequential(
-            init_(nn.Conv2d(1, 8, 3, stride=3, padding_mode='zeros')), nn.ReLU(),
-            init_(nn.Conv2d(8, 16, 3, stride=1, padding_mode='zeros')), nn.ReLU(),
-            nn.MaxPool2d(3, 1, 0), Flatten())
+            init_(nn.Conv2d(1, 8, 3, stride=1, padding_mode='zeros', padding=1)), nn.ReLU(),
+            init_(nn.Conv2d(8, 16, 3, stride=1, padding_mode='zeros', padding=1)), nn.ReLU(), Flatten())
 
         # out_size = 8 * ((((obs_shape[0].shape[-2] - 2) * (obs_shape[0].shape[-1] - 2)) * 4 + 2) // 3) + 2
-        out_size = 402
-        layers = []
-        layers.append(init_(nn.Linear(out_size, hidden_sizes[0])))
-        layers.append(nn.ReLU())
-        for i in range(len(hidden_sizes) - 1):
-            layers.append(init_(nn.Linear(hidden_sizes[i], hidden_sizes[i + 1])))
-            layers.append(nn.ReLU())
+        out_size = 1602
+        actor_layers = generate_linear_layers(out_size, hidden_sizes, action_size, init_)
+        critic_layers = generate_linear_layers(out_size, hidden_sizes, 1, init_)
 
-        self.actor = nn.Sequential(*layers, init_(nn.Linear(hidden_sizes[-1], action_size)))
-        self.critic = nn.Sequential(*layers, init_(nn.Linear(hidden_sizes[-1], 1)))
+        self.actor = nn.Sequential(*actor_layers)
+        self.critic = nn.Sequential(*critic_layers)
 
         self.dist = FixedCategorical
 

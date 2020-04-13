@@ -108,15 +108,25 @@ def get_args():
         default=100,
         help='save interval, one save per n updates (default: 100)')
     parser.add_argument(
-        '--rows',
+        '--min-rows',
         type=int,
-        default=10,
-        help='rows in board (default: 10)')
+        default=5,
+        help='rows in board (default: 5)')
     parser.add_argument(
-        '--cols',
+        '--min-cols',
+        type=int,
+        default=5,
+        help='cols in board (default: 5)')
+    parser.add_argument(
+        '--max-rows',
         type=int,
         default=10,
-        help='cols in board (default: 10)')
+        help='max rows in board (default: 10)')
+    parser.add_argument(
+        '--max-cols',
+        type=int,
+        default=10,
+        help='max cols in board (default: 10)')
     parser.add_argument(
         '--obs-rows',
         type=int,
@@ -127,16 +137,6 @@ def get_args():
         type=int,
         default=5,
         help='cols in board observation (default: 5)')
-    parser.add_argument(
-        '--min-nets',
-        type=int,
-        default=3,
-        help='min nets on board (default: 3)')
-    parser.add_argument(
-        '--max-nets',
-        type=int,
-        default=7,
-        help='max nets on board (default: 7)')
     parser.add_argument(
         '--eval-interval',
         type=int,
@@ -170,6 +170,11 @@ def get_args():
         action='store_true',
         default=False,
         help='Use convolutional network.')
+    parser.add_argument(
+        '--curriculum',
+        action='store_true',
+        default=False,
+        help='Use curriculum learning')
     parser.add_argument(
         '--use-linear-lr-decay',
         action='store_true',

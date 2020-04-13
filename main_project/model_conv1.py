@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-from main_project.utils import init, Flatten
+from main_project.utils import init, Flatten, generate_linear_layers
 
 
 class ACNetwork(nn.Module):
@@ -17,15 +17,11 @@ class ACNetwork(nn.Module):
             init_(nn.Conv2d(1, out_channels, kernel_size, stride=1, padding_mode='zeros')), nn.ReLU(), Flatten())
 
         out_size = (((obs_shape[0].shape[-2] - (kernel_size - 1)) * (obs_shape[0].shape[-1] - (kernel_size - 1))) * out_channels) + obs_shape[1].shape[0]
-        layers = []
-        layers.append(init_(nn.Linear(out_size, hidden_sizes[0])))
-        layers.append(nn.ReLU())
-        for i in range(len(hidden_sizes) - 1):
-            layers.append(init_(nn.Linear(hidden_sizes[i], hidden_sizes[i + 1])))
-            layers.append(nn.ReLU())
+        actor_layers = generate_linear_layers(out_size, hidden_sizes, action_size, init_)
+        critic_layers = generate_linear_layers(out_size, hidden_sizes, 1, init_)
 
-        self.actor = nn.Sequential(*layers, init_(nn.Linear(hidden_sizes[-1], action_size)))
-        self.critic = nn.Sequential(*layers, init_(nn.Linear(hidden_sizes[-1], 1)))
+        self.actor = nn.Sequential(*actor_layers)
+        self.critic = nn.Sequential(*critic_layers)
 
         self.dist = FixedCategorical
 
