@@ -48,12 +48,16 @@ def read_file(filename):
 
 
 class PCBBoard(abc.ABC, gym.Env):
-    def __init__(self, min_rows, min_cols, max_rows, max_cols, rand_nets, obstacle_value, blank_value, filename=None):
+    def __init__(self, min_rows, min_cols, max_rows, max_cols, rand_nets, min_nets, max_nets, obstacle_value, blank_value, filename=None):
         super(PCBBoard, self).__init__()
         self.obstacle_value = obstacle_value
         self.blank_value = blank_value
-        self.MAX_OBS_ROWS = 10
-        self.MAX_OBS_COLS = 10
+        self.MAX_OBS_ROWS = 9
+        self.MAX_OBS_COLS = 9
+
+        self.min_nets = min_nets
+        self.max_nets = max_nets
+
         self.middle_obs_row = self.MAX_OBS_ROWS // 2
         self.middle_obs_col = self.MAX_OBS_COLS // 2
         self.grid = None
@@ -76,8 +80,6 @@ class PCBBoard(abc.ABC, gym.Env):
             self.total_nets = len(self.nets)
 
         n = int((self.rows * self.cols) ** .5)
-        self.min_nets = n * 2 // 3
-        self.max_nets = n * 3 // 2
         self.cur_net_id = 0
         self.total_reward = 0.0
 
@@ -102,11 +104,9 @@ class PCBBoard(abc.ABC, gym.Env):
     def observe(self):
         pass
 
-    def increase_env_size(self, min_dim, max_dim):
-        self.min_rows = min_dim
-        self.min_cols = min_dim
-        self.max_rows = max_dim
-        self.max_cols = max_dim
+    def increase_env_size(self, min_nets, max_nets):
+        self.min_nets = min_nets
+        self.max_nets = max_nets
 
     def get_action_size(self):
         return len(actions)
@@ -163,9 +163,6 @@ class PCBBoard(abc.ABC, gym.Env):
         if self.rand_nets:
             self.rows = random.randint(self.min_rows, self.max_rows)
             self.cols = random.randint(self.min_cols, self.max_cols)
-            n = int((self.rows * self.cols) ** .5)
-            self.min_nets = n * 2 // 3
-            self.max_nets = n * 3 // 2
             self.nets = NetGen.generate_board(self.rows, self.cols, self.min_nets, self.max_nets)
             self.total_nets = len(self.nets)
             self.total_steps = self.rows * self.cols * 4

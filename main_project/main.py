@@ -113,8 +113,8 @@ def learn(actor_critic, agent, args, envs):
         entropies.append(dist_entropy)
 
         if args.curriculum and np.mean(boards_completed) > 0.85 and rows < args.max_rows and cols < args.max_cols:
-            rows += 1
-            cols += 1
+            min_nets = min(5, min_nets + 1)
+            max_nets = min(15, max_nets + 1)
             envs.increase_env_size(rows, cols)
             graduate = True
 
