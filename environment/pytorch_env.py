@@ -3,13 +3,12 @@ from functools import reduce
 import gym
 import numpy as np
 import torch
-from baselines.common.vec_env import ShmemVecEnv, VecNormalize, VecEnvWrapper, DummyVecEnv
+from stable_baselines.common.vec_env import VecNormalize, VecEnvWrapper, DummyVecEnv, SubprocVecEnv
 from gym import ObservationWrapper
-from gym.wrappers import TimeLimit
 
 
-def create_env(env, min_rows, min_cols, max_rows, max_cols, seed, idx, conv):
-    env = env(min_rows, min_cols, max_rows, max_cols, padded=True)
+def create_env(env, min_rows, min_cols, max_rows, max_cols, min_nets, max_nets, seed, idx, conv):
+    env = env(min_rows, min_cols, max_rows, max_cols, min_nets=min_nets, max_nets=max_nets, padded=True)
     # env = env(5, 5, rand_nets=False, filename="../main_project/envs/small/5x5_" + str(idx % 8) + ".txt", padded=True)
     # env = env(5, 5, rand_nets=False, filename="../main_project/envs/small/5x5_5.txt", padded=True)
 
@@ -21,15 +20,36 @@ def create_env(env, min_rows, min_cols, max_rows, max_cols, seed, idx, conv):
     return lambda: env
 
 
-def make_vec_env(env, min_rows, min_cols, max_rows, max_cols, seed, num_envs, normalise=False, conv=False):
-    envs = [create_env(env, min_rows, min_cols, max_rows, max_cols, seed, i, conv) for i in range(num_envs)]
-    envs = ShmemVecEnv(envs, context='fork')
+def create_cp_env(seed, rank):
+    env = gym.make("CartPole-v0")
+    if seed is not None:
+        env.seed(seed + rank)
+
+    return lambda: env
+
+def make_cart_pole_vec_env(seed, num_envs):
+    envs = [create_cp_env(seed, i) for i in range(num_envs)]
+    if num_envs == 1:
+        envs = DummyVecEnv(envs)
+    else:
+        envs = SubprocVecEnv(envs)
+    envs = VecPyTorchEnvLinear(envs)
+
+    return envs
+
+
+def make_vec_env(env, device, min_rows, min_cols, max_rows, max_cols, min_nets, max_nets, seed, num_envs, normalise=False, conv=False):
+    envs = [create_env(env, min_rows, min_cols, max_rows, max_cols, min_nets, max_nets, seed, i, conv) for i in range(num_envs)]
+    if num_envs == 1:
+        envs = DummyVecEnv(envs)
+    else:
+        envs = SubprocVecEnv(envs)
 
     if normalise:
-        envs = VecNormalize(envs, ret=False)
+        envs = VecNormalize(envs)
 
     if conv:
-        envs = VecPyTorchEnv(envs)
+        envs = VecPyTorchEnv(envs, device)
     else:
         envs = VecPyTorchEnvLinear(envs)
 
@@ -37,14 +57,15 @@ def make_vec_env(env, min_rows, min_cols, max_rows, max_cols, seed, num_envs, no
 
 
 class VecPyTorchEnv(VecEnvWrapper):
-    def __init__(self, venv):
+    def __init__(self, venv, device):
         super(VecPyTorchEnv, self).__init__(venv)
+        self.device = device
 
     def reset(self):
         obs = self.venv.reset()
         grid_obs, dest_obs = obs[0], obs[1]
-        grid_obs = torch.from_numpy(grid_obs).float()
-        dest_obs = torch.from_numpy(dest_obs).float()
+        grid_obs = torch.from_numpy(grid_obs).float().to(self.device)
+        dest_obs = torch.from_numpy(dest_obs).float().to(self.device)
         return grid_obs, dest_obs
 
     def step_async(self, actions):
@@ -52,13 +73,12 @@ class VecPyTorchEnv(VecEnvWrapper):
             # Squeeze the dimension for discrete actions
             actions = actions.squeeze(-1)
         actions = actions.cpu().tolist()
-        # action_dict = [{i: a for i, a in enumerate(a_list)} for a_list in actions]
         self.venv.step_async(actions)
 
     def step_wait(self):
         obs, reward, done, info = self.venv.step_wait()
-        grid_obs = torch.from_numpy(obs[0]).float()
-        dest_obs = torch.from_numpy(obs[1]).float()
+        grid_obs = torch.from_numpy(obs[0]).float().to(self.device)
+        dest_obs = torch.from_numpy(obs[1]).float().to(self.device)
         reward = torch.from_numpy(reward).unsqueeze(dim=1).float()
         return (grid_obs, dest_obs), reward, done, info
 

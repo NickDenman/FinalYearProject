@@ -8,10 +8,10 @@ def get_args():
     parser.add_argument(
         '--algo', default='ppo', help='algorithm to use: a2c | ppo | acktr')
     parser.add_argument(
-        '--gail',
+        '--continue-learning',
         action='store_true',
         default=False,
-        help='do imitation learning with gail')
+        help='continue learning from some other network')
     parser.add_argument(
         '--gail-experts-dir',
         default='./gail_experts',

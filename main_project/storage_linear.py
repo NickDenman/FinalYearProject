@@ -24,6 +24,15 @@ class RolloutStorage(object):
     def get_obs(self, index):
         return self.obs[index]
 
+    def to(self, device):
+        self.obs = self.obs.to(device)
+        self.rewards = self.rewards.to(device)
+        self.values = self.values.to(device)
+        self.returns = self.returns.to(device)
+        self.action_log_probs = self.action_log_probs.to(device)
+        self.actions = self.actions.to(device)
+        self.masks = self.masks.to(device)
+
     def insert(self, obs, actions, action_log_probs, value_preds, rewards, masks):
         self.obs[self.step + 1].copy_(obs)
         self.actions[self.step].copy_(actions)

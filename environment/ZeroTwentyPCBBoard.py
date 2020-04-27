@@ -95,7 +95,7 @@ class ZeroTwentyPCBBoard(pcb.PCBBoard):
         time_out = self.current_step > self.total_steps
         obs = self.observe()
 
-        return obs, reward, done or time_out, done
+        return obs, reward, done or time_out, {"completed": done}
 
     def is_valid_move(self, action):
         next_r, next_c = self.get_next_pos(self.agent.location, action)

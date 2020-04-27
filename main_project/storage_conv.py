@@ -23,6 +23,17 @@ class RolloutStorage(object):
         self.grid_obs[idx] = obs[0]
         self.dest_obs[idx] = obs[1]
 
+    def to(self, device):
+        self.grid_obs = self.grid_obs.to(device)
+        self.dest_obs = self.dest_obs.to(device)
+        self.rewards = self.rewards.to(device)
+        self.values = self.values.to(device)
+        self.returns = self.returns.to(device)
+        self.action_log_probs = self.action_log_probs.to(device)
+        self.actions = self.actions.to(device)
+        self.masks = self.masks.to(device)
+
+
     def insert(self, obs, actions, action_log_probs, value_preds, rewards, masks):
         self.grid_obs[self.step + 1].copy_(obs[0])
         self.dest_obs[self.step + 1].copy_(obs[1])

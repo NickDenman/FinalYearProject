@@ -136,10 +136,25 @@ def get_nets(grid):
 
     net_list = {}
     for i, endpoints in nets.items():
-        net = Net(i, endpoints[0], endpoints[1])
-        net_list[i] = net
+        if len(endpoints) == 2:
+            net = Net(i, endpoints[0], endpoints[1])
+            net_list[i] = net
 
     return net_list
+
+
+def one_net(w, h):
+    x1 = random.randrange(0, w)
+    y1 = random.randrange(0, h)
+
+    x2 = random.randrange(0, w)
+    y2 = random.randrange(0, h)
+
+    while x1 == x2 and y1 == y2:
+        x2 = random.randrange(0, w)
+        y2 = random.randrange(0, h)
+
+    return {0: Net(0, (x1, y1), (x2, y2))}
 
 
 def generate_board(w, h, min_nets, max_nets):
@@ -148,6 +163,9 @@ def generate_board(w, h, min_nets, max_nets):
         return
     mitm = Mitm(lr_price=2, t_price=1)
     mitm.prepare(min(20, max(h, 6)))
+
+    if min_nets == 1 and max_nets == 1:
+        return one_net(w, h)
 
     grid = make(w, h, mitm, min_nets, max_nets)
 

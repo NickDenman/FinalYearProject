@@ -14,6 +14,7 @@ NET_REWARD = 2.0
 STEP_REWARD = -1.0
 DIAGONAL_REWARD = -0.4  # diagonal lines are of length √2 ~= 1.4
 DIRECTION_CHANGE_FACTOR = 0.0
+STEP_FACTOR = 2
 
 actions = {0: (0, 0),
            1: (-1, 0),
@@ -86,7 +87,8 @@ class PCBBoard(abc.ABC, gym.Env):
         self.observation_space = gym.spaces.Box(low=0, high=20, shape=(self.get_observation_size(),), dtype=np.float32)
         self.action_space = gym.spaces.Discrete(self.get_action_size())
 
-        self.total_steps = self.rows * self.cols * 4
+        self.total_steps = -1
+        self.routed_nets = set()
 
     @abc.abstractmethod
     def get_observation_size(self):
@@ -140,13 +142,18 @@ class PCBBoard(abc.ABC, gym.Env):
         self.agent = agent
 
     def get_new_net(self):
-        if self.cur_net_id >= self.total_nets:
+        if len(self.routed_nets) == self.total_nets:
             return None
 
-        net = self.nets.get(self.cur_net_id)
-        self.cur_net_id += 1
+        shortest_net = None
+        shortest_dist = math.inf
+        for net_id, net in self.nets.items():
+            if net_id not in self.routed_nets and net.dist < shortest_dist:
+                shortest_net = net
+                shortest_dist = net.dist
 
-        return net
+        self.routed_nets.add(shortest_net.net_id)
+        return shortest_net
 
     def is_net_complete(self):
         return self.agent.location == self.nets.get(self.agent.net_id).end
@@ -165,12 +172,13 @@ class PCBBoard(abc.ABC, gym.Env):
             self.cols = random.randint(self.min_cols, self.max_cols)
             self.nets = NetGen.generate_board(self.rows, self.cols, self.min_nets, self.max_nets)
             self.total_nets = len(self.nets)
-            self.total_steps = self.rows * self.cols * 4
+            self.total_steps = self.rows * self.cols * STEP_FACTOR
         else:
             for _, net in self.nets.items():
                 net.reset()
 
         self.grid = np.full(shape=(self.rows, self.cols), fill_value=self.blank_value, dtype=np.int)
+        self.routed_nets = set()
         self.initialise_agent()
         self.initialise_grid()
         self.total_reward = 0.0
@@ -218,14 +226,14 @@ class PCBBoard(abc.ABC, gym.Env):
 
         for net_id, net in self.nets.items():
             row, col = self.global_to_render(net.start, pixel_height, pixel_width)
-            self.render_net_endpoints(cr, row, col, radius)
+            self.render_net_endpoints(cr, row, col, radius, net_id)
 
             row, col = self.global_to_render(net.end, pixel_height, pixel_width)
-            self.render_net_endpoints(cr, row, col, radius)
+            self.render_net_endpoints(cr, row, col, radius, net_id)
 
             if net.path:
                 cr.new_path()
-                (r, g, b) = blue
+                (r, g, b) = self.get_colour(net_id)
                 cr.set_source_rgb(r, g, b)
                 render_row, render_col = self.global_to_render(net.start, pixel_height, pixel_width)
 
@@ -250,21 +258,22 @@ class PCBBoard(abc.ABC, gym.Env):
 
                     cr.line_to(render_col, render_row)
                 cr.stroke()
-            ims.write_to_png(filename)
+
+        ims.write_to_png(filename)
 
     def global_to_render(self, pos, pixel_height, pixel_width):
         r, c = pos
         return ((r * 2) + 1) * pixel_height, ((c * 2) + 1) * pixel_width
 
-    def render_net_endpoints(self, cr, row, col, radius):
-        (r, g, b) = self.get_colour()
+    def render_net_endpoints(self, cr, row, col, radius, net_id):
+        (r, g, b) = self.get_colour(net_id)
         cr.set_source_rgb(r, g, b)
 
         cr.arc(col, row, radius, 0, 2 * math.pi)
         cr.stroke()
 
-    def get_colour(self):
-        return blue
+    def get_colour(self, net_id):
+        return colours.get(net_id)
 
 
 class Agent:
