@@ -10,8 +10,12 @@ class RolloutStorage(object):
         self.num_processes = num_processes
         self.step = 0
 
-        self.grid_obs = torch.zeros(num_steps + 1, num_processes, *obs_shape[0].shape)
-        self.dest_obs = torch.zeros(num_steps + 1, num_processes, *obs_shape[1].shape)
+        self.grid_obs = torch.zeros(num_steps + 1,
+                                    num_processes,
+                                    *obs_shape[0].shape)
+        self.dest_obs = torch.zeros(num_steps + 1,
+                                    num_processes,
+                                    *obs_shape[1].shape)
         self.rewards = torch.zeros(num_steps, num_processes, 1)
         self.values = torch.zeros(num_steps + 1, num_processes, 1)
         self.returns = torch.zeros(num_steps + 1, num_processes, 1)
@@ -19,9 +23,9 @@ class RolloutStorage(object):
         self.actions = torch.zeros(num_steps, num_processes, 1).long()
         self.masks = torch.ones(num_steps + 1, num_processes, 1)
 
-    def save_obs(self, obs, idx):
-        self.grid_obs[idx] = obs[0]
-        self.dest_obs[idx] = obs[1]
+    def save_obs(self, obs, idx=0):
+        self.grid_obs[idx].copy_(obs[0])
+        self.dest_obs[idx].copy_(obs[1])
 
     def to(self, device):
         self.grid_obs = self.grid_obs.to(device)
@@ -43,49 +47,56 @@ class RolloutStorage(object):
         self.rewards[self.step].copy_(rewards)
         self.masks[self.step + 1].copy_(masks)
 
-        self.step += 1
+        self.step = (self.step + 1) % self.num_steps
 
-    # Copies last values to the front for the new round of learning - doesn't reset env after each update block.
     def after_update(self):
         self.grid_obs[0].copy_(self.grid_obs[-1])
         self.dest_obs[0].copy_(self.dest_obs[-1])
         self.masks[0].copy_(self.masks[-1])
-        self.step = 0
 
     def get_obs(self, index):
         return self.grid_obs[index], self.dest_obs[index]
 
-    def get_advantages(self):
-        advantages = self.returns[:-1] - self.values[:-1]
-        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-5)
-
-        return advantages
 
     def compute_returns(self, next_value, use_gae, gamma, gae_lambda):
         if use_gae:
             self.values[-1] = next_value
             gae = 0
             for step in reversed(range(self.rewards.size(0))):
-                delta = self.rewards[step] + gamma * self.values[step + 1] * self.masks[step + 1] - self.values[step]
+                delta = self.rewards[step] + gamma * self.values[step + 1] * \
+                        self.masks[step + 1] - self.values[step]
                 gae = delta + gamma * gae_lambda * self.masks[step + 1] * gae
                 self.returns[step] = gae + self.values[step]
         else:
             self.returns[-1] = next_value
             for step in reversed(range(self.rewards.size(0))):
-                self.returns[step] = self.returns[step + 1] * gamma * self.masks[step + 1] + self.rewards[step]
+                self.returns[step] = \
+                    self.returns[step + 1] * gamma * self.masks[step + 1] + \
+                    self.rewards[step]
 
     def feed_forward_generator(self, advantages, num_mini_batch):
         batch_size = self.num_processes * self.num_steps
         mini_batch_size = batch_size // num_mini_batch
 
-        sampler = BatchSampler(SubsetRandomSampler(range(batch_size)), mini_batch_size, drop_last=True)
+        sampler = BatchSampler(SubsetRandomSampler(range(batch_size)),
+                               mini_batch_size,
+                               drop_last=True)
         for indices in sampler:
-            grid_obs_batch = self.grid_obs[:-1].view(-1, *self.grid_obs.size()[2:])[indices]
-            dest_obs_batch = self.dest_obs[:-1].view(-1, *self.dest_obs.size()[2:])[indices]
-            actions_batch = self.actions.view(-1, self.actions.size(-1))[indices]
+            grid_obs_batch = self.grid_obs[:-1] \
+                .view(-1, *self.grid_obs.size()[2:])[indices]
+            dest_obs_batch = self.dest_obs[:-1] \
+                .view(-1, *self.dest_obs.size()[2:])[indices]
+            actions_batch = self.actions \
+                .view(-1, self.actions.size(-1))[indices]
             values_batch = self.values[:-1].view(-1, 1)[indices]
             return_batch = self.returns[:-1].view(-1, 1)[indices]
-            old_action_log_probs_batch = self.action_log_probs.view(-1, 1)[indices]
+            old_action_log_probs_batch = self.action_log_probs \
+                .view(-1, 1)[indices]
             advantages_batch = advantages.view(-1, 1)[indices]
 
-            yield (grid_obs_batch, dest_obs_batch), actions_batch, values_batch, return_batch, old_action_log_probs_batch, advantages_batch
+            yield (grid_obs_batch, dest_obs_batch), \
+                  actions_batch, \
+                  values_batch, \
+                  return_batch, \
+                  old_action_log_probs_batch, \
+                  advantages_batch

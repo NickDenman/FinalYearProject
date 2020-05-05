@@ -3,7 +3,6 @@ from collections import Counter, defaultdict
 import itertools
 
 # starter altid (0,0) -> (0,1)
-# Sti har formen [2, l, r]*, da man kan forlænge med 2, gå til venstre eller gå til højre.
 T, L, R = range(3)
 
 
@@ -35,7 +34,8 @@ class Path:
         """ Tests path is non-overlapping, except for first and last. """
         ps = list(self.xys())
         seen = set(ps)
-        return len(ps) == len(seen) or len(ps) == len(seen) + 1 and ps[0] == ps[-1]
+        return len(ps) == len(seen) or len(ps) == len(seen) + 1 and \
+               ps[0] == ps[-1]
 
     def winding(self):
         return self.steps.count(R) - self.steps.count(L)
@@ -96,9 +96,11 @@ class Mitm:
             x, y, dx, dy = 0, 0, 0, 1
             seen.add((x, y))
             for _ in range(2 * (abs(xn) + abs(yn))):
-                # We sample with weights proportional to what they are in _good_paths()
+                # We sample with weights proportional to what they are in
+                # _good_paths()
                 step, = random.choices(
-                    [L, R, T], [1 / self.lr_price, 1 / self.lr_price, 2 / self.t_price])
+                    [L, R, T],
+                    [1 / self.lr_price, 1 / self.lr_price, 2 / self.t_price])
                 path.append(step)
                 x, y = x + dx, y + dy
                 if (x, y) in seen:
@@ -120,7 +122,8 @@ class Mitm:
                     return Path(tuple(path) + random.choice(ends))
 
     def rand_loop(self, clock=0):
-        """ Set clock = 1 for clockwise, -1 for anti clockwise. 0 for don't care. """
+        """ Set clock = 1 for clockwise, -1 for anti clockwise.
+        0 for don't care. """
         while True:
             # The list only contains 0,1 starting directions
             path, x, y, dx, dy = random.choice(self.list)

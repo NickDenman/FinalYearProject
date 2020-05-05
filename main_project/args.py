@@ -13,22 +13,6 @@ def get_args():
         default=False,
         help='continue learning from some other network')
     parser.add_argument(
-        '--gail-experts-dir',
-        default='./gail_experts',
-        help='directory that contains expert demonstrations for gail')
-    parser.add_argument(
-        '--gail-batch-size',
-        type=int,
-        default=128,
-        help='gail batch size (default: 128)')
-    parser.add_argument(
-        '--num_agents',
-        type=int,
-        default=1,
-        help='number of agents (default: 1)')
-    parser.add_argument(
-        '--gail-epoch', type=int, default=5, help='gail epochs (default: 5)')
-    parser.add_argument(
         '--lr', type=float, default=7e-4, help='learning rate (default: 7e-4)')
     parser.add_argument(
         '--eps',
@@ -128,21 +112,6 @@ def get_args():
         default=10,
         help='max cols in board (default: 10)')
     parser.add_argument(
-        '--obs-rows',
-        type=int,
-        default=5,
-        help='rows in board observation (default: 5)')
-    parser.add_argument(
-        '--obs-cols',
-        type=int,
-        default=5,
-        help='cols in board observation (default: 5)')
-    parser.add_argument(
-        '--eval-interval',
-        type=int,
-        default=None,
-        help='eval interval, one eval per n updates (default: None)')
-    parser.add_argument(
         '--num-env-steps',
         type=int,
         default=1e8,
@@ -184,6 +153,6 @@ def get_args():
 
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 
-    assert args.algo in ['a2c', 'ppo', 'acktr']
+    assert args.algo in ['a2c', 'ppo']
 
     return args

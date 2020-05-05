@@ -7,13 +7,11 @@ from torch.utils.tensorboard import SummaryWriter
 
 from algorithms.a2c import A2C
 from algorithms.ppo import PPO
-from environment.BinaryPCBBoardConv import BinaryPCBBoardConv
-from environment.ZeroTwentyPCBBoard import ZeroTwentyPCBBoard
+from environment.OrdinalEnv import OrdinalEnv
 from environment.pytorch_env import make_vec_env
 from main_project import utils
 from main_project.args import get_args
 from main_project.model_conv1 import ACNetwork as ACNetworkConv1
-from main_project.model_conv2 import ACNetwork as ACNetworkConv2
 from main_project.model_linear import ACNetwork as ACNetworkLinear
 from main_project.storage_conv import RolloutStorage as RolloutStorageConv
 from main_project.storage_linear import RolloutStorage as RolloutStorageLinear
@@ -40,17 +38,24 @@ def main(env):
     print(device)
 
     if args.curriculum:
-        envs = make_vec_env(env, device, args.min_rows, args.min_cols, args.max_rows, args.max_cols, 1, 1, args.seed, args.num_envs, conv=args.conv)
+        envs = make_vec_env(env, device, args.min_rows, args.min_cols,
+                            args.max_rows, args.max_cols, 1, 1, args.seed,
+                            args.num_envs, conv=args.conv)
     else:
-        envs = make_vec_env(env, device, args.min_rows, args.min_cols, args.max_rows, args.max_cols, 3, 3, args.seed, args.num_envs, conv=args.conv)
+        envs = make_vec_env(env, device, 5, 5, 5, 5, 3, 3, args.seed,
+                            args.num_envs, conv=args.conv)
 
     if args.continue_learning:
         actor_critic = load_network(args)
     else:
         if args.conv:
-            actor_critic = ACNetworkConv1(envs.observation_space.spaces, envs.action_space.n, args.linear_layers)
+            actor_critic = ACNetworkConv1(envs.observation_space.spaces,
+                                          envs.action_space.n,
+                                          args.linear_layers)
         else:
-            actor_critic = ACNetworkLinear(envs.observation_space.shape, envs.action_space.n, args.linear_layers)
+            actor_critic = ACNetworkLinear(envs.observation_space.shape,
+                                           envs.action_space.n,
+                                           args.linear_layers)
 
     print(actor_critic)
 
@@ -69,15 +74,17 @@ def learn(actor_critic, agent, args, envs, device):
 
     writer = SummaryWriter(log_dir=args.log_dir)
     if args.conv:
-        rollouts = RolloutStorageConv(args.num_steps, args.num_envs, envs.observation_space)
+        rollouts = RolloutStorageConv(args.num_steps, args.num_envs,
+                                      envs.observation_space)
     else:
-        rollouts = RolloutStorageLinear(args.num_steps, args.num_envs, envs.observation_space.shape)
+        rollouts = RolloutStorageLinear(args.num_steps, args.num_envs,
+                                        envs.observation_space.shape)
 
     obs = envs.reset()
     rollouts.save_obs(obs, 0)
     rollouts.to(device)
 
-    graduate_len = 25000
+    graduate_len = 2500
     graduate_list = deque(maxlen=graduate_len)
 
     episode_rewards = deque(maxlen=args.log_interval * 2)
@@ -93,17 +100,19 @@ def learn(actor_critic, agent, args, envs, device):
     for update in range(num_updates):
         graduate = False
         if args.use_linear_lr_decay:
-            lr = args.lr
-            utils.update_linear_schedule(agent.optimizer, update, num_updates, lr)
+            utils.update_linear_schedule(agent.optimizer, update,
+                                         num_updates, args.lr)
 
         for step in range(args.num_steps):
             with torch.no_grad():
-                actions, action_log_probs = actor_critic.act(rollouts.get_obs(step))
+                actions, action_log_probs = actor_critic.act(
+                    rollouts.get_obs(step))
                 values = actor_critic.get_value(rollouts.get_obs(step))
 
             obs, rewards, dones, info = envs.step(actions)
 
-            for i, (reward, done) in enumerate(zip(rewards.detach().squeeze(1).tolist(), dones)):
+            for i, (reward, done) in \
+                    enumerate(zip(rewards.detach().squeeze(1).tolist(), dones)):
                 env_rewards[i] += reward
                 if done:
                     episode_rewards.append(env_rewards[i])
@@ -111,13 +120,15 @@ def learn(actor_critic, agent, args, envs, device):
                     graduate_list.append(int(info[i]["completed"]))
                     env_rewards[i] = 0
 
-            masks = torch.FloatTensor([[0.0] if done_ else [1.0] for done_ in dones])
-            rollouts.insert(obs, actions, action_log_probs, values, rewards, masks)
+            masks = torch.FloatTensor([[1.0 - done] for done in dones])
+            rollouts.insert(obs, actions, action_log_probs, values, rewards,
+                            masks)
 
         with torch.no_grad():
-            next_value = actor_critic.get_value(rollouts.get_obs(-1)).detach()  # TODO: check if you need the detach as well s the no grad
+            next_value = actor_critic.get_value(rollouts.get_obs(-1)).detach()
 
-        rollouts.compute_returns(next_value, args.use_gae, args.gamma, args.gae_lambda)
+        rollouts.compute_returns(next_value, args.use_gae, args.gamma,
+                                 args.gae_lambda)
         value_loss, action_loss, dist_entropy = agent.update(rollouts)
 
         value_losses.append(value_loss)
@@ -125,14 +136,29 @@ def learn(actor_critic, agent, args, envs, device):
         entropies.append(dist_entropy)
         grad_percentage = np.sum(graduate_list) / graduate_len
 
-        if args.curriculum and grad_percentage > 0.85 and (min_nets < 3 or max_nets < 3):
+        if args.curriculum and grad_percentage > 0.85 and \
+                (min_nets < 3 or max_nets < 3):
             min_nets = min_nets + 1
             max_nets = max_nets + 1
             graduate_list.clear()
             envs.env_method("increase_env_size", min_nets, max_nets)
             graduate = True
 
-        log_info(writer, update, num_updates, episode_rewards, boards_completed, actor_critic, value_losses, action_losses, entropies, args, min_nets, max_nets, graduate, grad_percentage)
+        log_info(writer,
+                 update,
+                 num_updates,
+                 episode_rewards,
+                 boards_completed,
+                 actor_critic,
+                 value_losses,
+                 action_losses,
+                 entropies,
+                 args,
+                 min_nets,
+                 max_nets,
+                 graduate,
+                 grad_percentage,
+                 graduate_list)
         rollouts.after_update()
 
 
@@ -149,8 +175,10 @@ def log_info(writer,
              min_nets,
              max_nets,
              graduate,
-             grad_percentage):
-    if (update % args.save_interval == 0 or update == num_updates - 1) and args.save_dir != "":
+             grad_percentage,
+             graduate_list):
+    if (update % args.save_interval == 0 or update == num_updates - 1) \
+            and args.save_dir != "":
         save_path = os.path.join(args.save_dir, args.algo)
         try:
             os.makedirs(save_path)
@@ -160,7 +188,8 @@ def log_info(writer,
         torch.save([actor_critic], os.path.join(save_path, "network.pt"))
 
 
-    if (update % args.log_interval == 0 or graduate) and len(episode_rewards) == 2 * args.log_interval:
+    if (update % args.log_interval == 0 or graduate) and \
+            len(episode_rewards) == 2 * args.log_interval:
         total_num_steps = (update + 1) * args.num_envs * args.num_steps
         v_loss = np.mean(value_losses)
         a_loss = np.mean(action_losses)
@@ -169,43 +198,53 @@ def log_info(writer,
         writer.add_scalar('Loss/critic', v_loss, total_num_steps)
         writer.add_scalar('Loss/actor', a_loss, total_num_steps)
         writer.add_scalar('Entropy', e, total_num_steps)
-        writer.add_scalar('Curriculum/mean_nets', (min_nets + max_nets) / 2, total_num_steps)
+        writer.add_scalar('Curriculum/mean_nets',
+                          (min_nets + max_nets) / 2, total_num_steps)
         writer.add_scalar('Curriculum/min_nets', min_nets, total_num_steps)
         writer.add_scalar('Curriculum/max_nets', max_nets, total_num_steps)
-        writer.add_scalar('Results/mean', np.mean(episode_rewards), total_num_steps)
+        writer.add_scalar('Results/mean',
+                          np.mean(episode_rewards), total_num_steps)
         writer.add_scalar('Results/percentage_routed', routed, total_num_steps)
         writer.flush()
         print(
             "Update {} of {}, num timesteps {} - Last {} training episodes: \n"
             "    Percentage_routed {:.1f}\n"
             "    Graduate_avg {:.5f}\n"
+            "    Graduate_list avg {:.5f} @ {}\n"
             "    mean/median reward {:.1f}/{:.1f}\n"
             "    min/max reward {:.1f}/{:.1f}\n"
             "    Entropy {:.2f}\n"
             "    Value loss {:.2f}\n"
             "    Actor loss {:.2f}\n"
-                        .format(update, num_updates, total_num_steps, len(episode_rewards),
-                                routed,
-                                grad_percentage,
-                                np.mean(episode_rewards), np.median(episode_rewards),
-                                np.min(episode_rewards), np.max(episode_rewards),
-                                e,
-                                v_loss,
-                                a_loss))
+            .format(update, num_updates, total_num_steps, len(episode_rewards),
+                    routed,
+                    grad_percentage,
+                    np.mean(graduate_list), len(graduate_list),
+                    np.mean(episode_rewards), np.median(episode_rewards),
+                    np.min(episode_rewards), np.max(episode_rewards),
+                    e,
+                    v_loss,
+                    a_loss))
 
     if graduate:
-        print("\n\n\n============================= GRADUATE =============================\n\n\n")
+        print("\n\n\n==================== GRADUATE =====================\n\n\n")
 
 
 def get_agent(actor_critic, args):
     if args.algo == 'a2c':
-        agent = A2C(actor_critic, args.value_loss_coef, args.entropy_coef, args.num_mini_batch,
+        agent = A2C(actor_critic,
+                    args.value_loss_coef,
+                    args.entropy_coef,
                     lr=args.lr,
                     eps=args.eps,
                     max_grad_norm=args.max_grad_norm,
                     conv=True)
     elif args.algo == 'ppo':
-        agent = PPO(actor_critic, args.clip_param, args.ppo_epoch, args.num_mini_batch, args.value_loss_coef,
+        agent = PPO(actor_critic,
+                    args.clip_param,
+                    args.ppo_epoch,
+                    args.num_mini_batch,
+                    args.value_loss_coef,
                     args.entropy_coef,
                     lr=args.lr,
                     eps=args.eps,
@@ -214,33 +253,5 @@ def get_agent(actor_critic, args):
     return agent
 
 
-def route_board(actor_critic, idx):
-    # env = ZeroTwentyPCBBoard(5, 5, 5, 5, rand_nets=True, min_nets=3, max_nets=7, padded=True)
-    env = BinaryPCBBoardConv(5, 5, rand_nets=False, filename="envs/small/5x5_5.txt", padded=True)
-    grid_obs, dest_obs = env.reset()
-    env.render_board()
-    done = False
-    steps = 0
-    reward = 0
-
-    while not done:
-        with torch.no_grad():
-            grid_obs = torch.from_numpy(grid_obs).float()
-            dest_obs = torch.from_numpy(dest_obs).float()
-            action, action_log_prob = actor_critic.act(grid_obs, dest_obs)
-
-        (grid_obs, dest_obs), r, done, _ = env.step(action)
-        reward += r
-        steps += 1
-
-    env.render_board(filename="results/small_render_" + str(idx) + ".png")
-    print(reward)
-
-
 if __name__ == "__main__":
-    # actor_critic = load_network(get_args())
-    # for i in range(8):
-    #     route_board(actor_critic, i)
-    # route_board(actor_critic, 0)
-
-    main(ZeroTwentyPCBBoard)
+    main(OrdinalEnv)

@@ -4,13 +4,15 @@ import os
 from torch import nn
 
 
-def generate_linear_layers(input, hidden_sizes, output, init_):
-    layers = [init_(nn.Linear(input, hidden_sizes[0])), nn.ReLU()]
+def generate_linear_layers(input, hidden_sizes, output, init_,
+                           activation=nn.ReLU, final_activation=None):
+    layers = [init_(nn.Linear(input, hidden_sizes[0])), activation()]
     for i in range(len(hidden_sizes) - 1):
         layers.append(init_(nn.Linear(hidden_sizes[i], hidden_sizes[i + 1])))
-        layers.append(nn.ReLU())
+        layers.append(activation())
     layers.append(init_(nn.Linear(hidden_sizes[-1], output)))
-    layers.append(nn.ReLU())
+    if final_activation is not None:
+        layers.append(final_activation())
 
     return layers
 

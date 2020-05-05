@@ -8,17 +8,32 @@ from main_project.utils import init, Flatten, generate_linear_layers
 class ACNetwork(nn.Module):
     def __init__(self, obs_shape, action_size, hidden_sizes):
         super().__init__()
-        init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.constant_(x, 0), np.sqrt(2))
+        init_ = lambda m: init(m, nn.init.orthogonal_,
+                               lambda x: nn.init.constant_(x, 0), np.sqrt(2))
 
-        # TODO: consider first conv2 with stride 1 and a max pooling layer
         self.conv = nn.Sequential(
-            init_(nn.Conv2d(1, 4, 3, stride=1, padding_mode='zeros', padding=1)), nn.ReLU(),
-            init_(nn.Conv2d(4, 8, 3, stride=1, padding_mode='zeros', padding=1)), nn.ReLU(), Flatten())
+            init_(nn.Conv2d(1,
+                            4,
+                            3,
+                            stride=1,
+                            padding_mode='zeros',
+                            padding=1)), nn.ReLU(),
+            init_(nn.Conv2d(4,
+                            8,
+                            3,
+                            stride=1,
+                            padding_mode='zeros',
+                            padding=1)), nn.ReLU(), Flatten())
 
-        # out_size = 8 * ((((obs_shape[0].shape[-2] - 2) * (obs_shape[0].shape[-1] - 2)) * 4 + 2) // 3) + 2
         out_size = 650
-        actor_layers = generate_linear_layers(out_size, hidden_sizes, action_size, init_)
-        critic_layers = generate_linear_layers(out_size, hidden_sizes, 1, init_)
+        actor_layers = generate_linear_layers(out_size,
+                                              hidden_sizes,
+                                              action_size,
+                                              init_)
+        critic_layers = generate_linear_layers(out_size,
+                                               hidden_sizes,
+                                               1,
+                                               init_)
 
         self.actor = nn.Sequential(*actor_layers)
         self.critic = nn.Sequential(*critic_layers)

@@ -43,36 +43,34 @@ class RolloutStorage(object):
 
         self.step += 1
 
-    # Copies last values to the front for the new round of learning - doesn't reset env after each update block.
     def after_update(self):
         self.obs[0].copy_(self.obs[-1])
         self.masks[0].copy_(self.masks[-1])
         self.step = 0
-
-    def get_advantages(self):
-        advantages = self.returns[:-1] - self.values[:-1]
-        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-5)
-
-        return advantages
 
     def compute_returns(self, next_value, use_gae, gamma, gae_lambda):
         if use_gae:
             self.values[-1] = next_value
             gae = 0
             for step in reversed(range(self.rewards.size(0))):
-                delta = self.rewards[step] + gamma * self.values[step + 1] * self.masks[step + 1] - self.values[step]
+                delta = self.rewards[step] + gamma * self.values[step + 1] * \
+                        self.masks[step + 1] - self.values[step]
                 gae = delta + gamma * gae_lambda * self.masks[step + 1] * gae
                 self.returns[step] = gae + self.values[step]
         else:
             self.returns[-1] = next_value
             for step in reversed(range(self.rewards.size(0))):
-                self.returns[step] = self.returns[step + 1] * gamma * self.masks[step + 1] + self.rewards[step]
+                self.returns[step] = \
+                    self.returns[step + 1] * gamma * self.masks[step + 1] + \
+                    self.rewards[step]
 
     def feed_forward_generator(self, advantages, num_mini_batch):
         batch_size = self.num_processes * self.num_steps
         mini_batch_size = batch_size // num_mini_batch
 
-        sampler = BatchSampler(SubsetRandomSampler(range(batch_size)), mini_batch_size, drop_last=True)
+        sampler = BatchSampler(SubsetRandomSampler(range(batch_size)),
+                               mini_batch_size,
+                               drop_last=True)
         for indices in sampler:
             obs_batch = self.obs[:-1].view(-1, *self.obs.size()[2:])[indices]
             actions_batch = self.actions.view(-1, self.actions.size(-1))[indices]
@@ -81,4 +79,9 @@ class RolloutStorage(object):
             old_action_log_probs_batch = self.action_log_probs.view(-1, 1)[indices]
             advantages_batch = advantages.view(-1, 1)[indices]
 
-            yield obs_batch, actions_batch, values_batch, return_batch, old_action_log_probs_batch, advantages_batch
+            yield obs_batch, \
+                  actions_batch, \
+                  values_batch, \
+                  return_batch, \
+                  old_action_log_probs_batch, \
+                  advantages_batch

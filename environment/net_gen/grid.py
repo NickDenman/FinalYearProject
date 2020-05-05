@@ -62,16 +62,18 @@ class Grid:
         return small_grid
 
     def test_path(self, path, x0, y0, dx0=0, dy0=1):
-        """ Test whether the path is safe to draw on the grid, starting at x0, y0 """
-        return all(0 <= x0 - x + y < self.w and 0 <= y0 + x + y < self.h
-                   and (x0 - x + y, y0 + x + y) not in self for x, y in path.xys(dx0, dy0))
+        """ Test whether the path is safe to draw on the grid,
+        starting at x0, y0 """
+        return all(0 <= x0 - x + y < self.w and 0 <= y0 + x + y < self.h and
+                   (x0 - x + y, y0 + x + y) not in self
+                   for x, y in path.xys(dx0, dy0))
 
     def draw_path(self, path, x0, y0, dx0=0, dy0=1, loop=False):
         """ Draws path on the grid. Asserts this is safe (no overlaps).
             For non-loops, the first and the last character is not drawn,
             as we don't know what shape they should have. """
         ps = list(path.xys(dx0, dy0))
-        # For loops, add the second character, so we get all rotational tripples:
+        # For loops, add the second character, so we get all rotational tripples
         # abcda  ->  abcdab  ->  abc, bcd, cda, dab
         if loop:
             assert ps[0] == ps[-1], (path, ps)

@@ -10,8 +10,10 @@ LOOP_TRIES = 1000
 
 def has_loops(grid, uf):
     """ Check whether the puzzle has loops not attached to an endpoint. """
-    groups = len({uf.find((x, y)) for y in range(grid.h) for x in range(grid.w)})
-    ends = sum(bool(grid[x, y] in 'v^<>') for y in range(grid.h) for x in range(grid.w))
+    groups = len({uf.find((x, y))
+                    for y in range(grid.h) for x in range(grid.w)})
+    ends = sum(bool(grid[x, y] in 'v^<>')
+                    for y in range(grid.h) for x in range(grid.w))
     return ends != 2 * groups
 
 
@@ -23,7 +25,7 @@ def has_pair(tg, uf):
                 x1, y1 = x + dx, y + dy
                 if x1 < tg.w and y1 < tg.h:
                     if tg[x, y] == tg[x1, y1] == 'x' \
-                            and uf.find( (x, y)) == uf.find( (x1, y1)):
+                            and uf.find((x, y)) == uf.find((x1, y1)):
                         return True
     return False
 
@@ -39,7 +41,7 @@ def has_tripple(tg, uf):
             nbs = 0
             for dx, dy in ((1, 0), (0, 1), (-1, 0), (0, -1)):
                 x1, y1 = x + dx, y + dy
-                if 0 <= x1 < tg.w and 0 <= y1 < tg.h and uf.find( (x1, y1)) == r:
+                if 0 <= x1 < tg.w and 0 <= y1 < tg.h and uf.find((x1, y1)) == r:
                     nbs += 1
             if nbs >= 3:
                 return True
@@ -105,8 +107,8 @@ def make(w, h, mitm, min_numbers=0, max_numbers=1000):
             path = mitm.rand_loop(clock=1 if tg[x, y] == '-' else -1)
             if grid.test_path(path, x, y):
                 # A loop may not overlap with anything, and may even have
-                # the right orientation, but if it 'traps' something inside it, that
-                # might now have the wrong orientation.
+                # the right orientation, but if it 'traps' something inside it,
+                # that might now have the wrong orientation.
                 # Hence we clear the insides.
                 grid.clear_path(path, x, y)
 

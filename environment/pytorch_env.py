@@ -3,14 +3,26 @@ from functools import reduce
 import gym
 import numpy as np
 import torch
-from stable_baselines.common.vec_env import VecNormalize, VecEnvWrapper, DummyVecEnv, SubprocVecEnv
+from stable_baselines.common.vec_env import \
+    VecNormalize, VecEnvWrapper, DummyVecEnv, SubprocVecEnv
 from gym import ObservationWrapper
 
 
-def create_env(env, min_rows, min_cols, max_rows, max_cols, min_nets, max_nets, seed, idx, conv):
-    env = env(min_rows, min_cols, max_rows, max_cols, min_nets=min_nets, max_nets=max_nets, padded=True)
-    # env = env(5, 5, rand_nets=False, filename="../main_project/envs/small/5x5_" + str(idx % 8) + ".txt", padded=True)
-    # env = env(5, 5, rand_nets=False, filename="../main_project/envs/small/5x5_5.txt", padded=True)
+def create_env(env,
+               min_rows,
+               min_cols,
+               max_rows,
+               max_cols,
+               min_nets,
+               max_nets,
+               conv):
+    env = env(min_rows,
+              min_cols,
+              max_rows,
+              max_cols,
+              min_nets=min_nets,
+              max_nets=max_nets,
+              padded=True)
 
     if conv:
         env = ConvEnvWrapper(env)
@@ -38,8 +50,26 @@ def make_cart_pole_vec_env(seed, num_envs):
     return envs
 
 
-def make_vec_env(env, device, min_rows, min_cols, max_rows, max_cols, min_nets, max_nets, seed, num_envs, normalise=False, conv=False):
-    envs = [create_env(env, min_rows, min_cols, max_rows, max_cols, min_nets, max_nets, seed, i, conv) for i in range(num_envs)]
+def make_vec_env(env,
+                 device,
+                 min_rows,
+                 min_cols,
+                 max_rows,
+                 max_cols,
+                 min_nets,
+                 max_nets,
+                 seed,
+                 num_envs,
+                 normalise=False,
+                 conv=False):
+    envs = [create_env(env,
+                       min_rows,
+                       min_cols,
+                       max_rows,
+                       max_cols,
+                       min_nets,
+                       max_nets,
+                       conv) for _ in range(num_envs)]
     if num_envs == 1:
         envs = DummyVecEnv(envs)
     else:
@@ -86,8 +116,11 @@ class VecPyTorchEnv(VecEnvWrapper):
 class LinearEnvWrapper(ObservationWrapper):
     def __init__(self, env):
         super().__init__(env)
-        x = reduce(lambda x, y: x*y, self.observation_space.spaces[0].shape) + self.observation_space.spaces[1].shape[0]
-        self.observation_space = gym.spaces.Box(0, 1, shape=(x, ), dtype=np.float32)
+        x = reduce(lambda x, y: x*y, self.observation_space.spaces[0].shape) + \
+            self.observation_space.spaces[1].shape[0]
+        self.observation_space = gym.spaces.Box(0, 1,
+                                                shape=(x, ),
+                                                dtype=np.float32)
 
     def observation(self, observation):
         return np.concatenate((observation[0].flatten(), observation[1]))
@@ -110,16 +143,13 @@ class VecPyTorchEnvLinear(VecEnvWrapper):
 
     def reset(self):
         obs = self.venv.reset()
-        # obs = np.concatenate((obs[0].reshape(self.venv.num_envs, -1), obs[1]), axis=1)
         obs = torch.from_numpy(obs).float()
         return obs
 
     def step_async(self, actions):
         if isinstance(actions, torch.LongTensor):
-            # Squeeze the dimension for discrete actions
             actions = actions.squeeze(-1)
         actions = actions.cpu().tolist()
-        # action_dict = [{i: a for i, a in enumerate(a_list)} for a_list in actions]
         self.venv.step_async(actions)
 
     def step_wait(self):

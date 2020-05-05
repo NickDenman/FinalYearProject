@@ -2,22 +2,26 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-from main_project.utils import init
+from main_project.utils import init, generate_linear_layers
 
 
 class ACNetwork(nn.Module):
     def __init__(self, obs_shape, action_size, hidden_sizes):
         super().__init__()
-        init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.constant_(x, 0), np.sqrt(2))
-        layers = []
-        layers.append(init_(nn.Linear(obs_shape[0], hidden_sizes[0])))
-        layers.append(nn.ReLU())
-        for i in range(len(hidden_sizes) - 1):
-            layers.append(init_(nn.Linear(hidden_sizes[i], hidden_sizes[i+1])))
-            layers.append(nn.ReLU())
+        init_ = lambda m: init(m, nn.init.orthogonal_,
+                               lambda x: nn.init.constant_(x, 0), np.sqrt(2))
+        actor_layers = generate_linear_layers(obs_shape,
+                                              hidden_sizes,
+                                              action_size,
+                                              init_)
+        critic_layers = generate_linear_layers(obs_shape,
+                                               hidden_sizes,
+                                               1,
+                                               init_,
+                                               activation=nn.Tanh)
 
-        self.actor = nn.Sequential(*layers, init_(nn.Linear(hidden_sizes[-1], action_size)))
-        self.critic = nn.Sequential(*layers, init_(nn.Linear(hidden_sizes[-1], 1)))
+        self.actor = nn.Sequential(*actor_layers)
+        self.critic = nn.Sequential(*critic_layers)
 
         self.dist = FixedCategorical
 

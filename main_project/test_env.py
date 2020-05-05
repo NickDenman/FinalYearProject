@@ -1,10 +1,10 @@
-from environment.BinaryPCBBoard import BinaryPCBBoard
-from environment.ZeroTwentyPCBBoard import ZeroTwentyPCBBoard
+from environment.BooleanEnv import BinaryPCBBoard
+from environment.OrdinalEnv import OrdinalEnv
 import numpy as np
 import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
-    env = ZeroTwentyPCBBoard(5, 5, 5, 5, 3, 3, rand_nets=False, filename="envs/invalid_1.txt", padded=True)
+    env = OrdinalEnv(5, 5, 5, 5, 3, 3, rand_nets=False, filename="envs/invalid_1.txt", padded=True)
     env.reset()
     env.step(4)
     env.step(4)
@@ -13,7 +13,7 @@ if __name__ == "__main__":
     env.step(6)
     env.render_board(filename="invalid_render1.png")
 
-    env = ZeroTwentyPCBBoard(5, 5, 5, 5, 3, 3, rand_nets=False, filename="envs/invalid_2.txt", padded=True)
+    env = OrdinalEnv(5, 5, 5, 5, 3, 3, rand_nets=False, filename="envs/invalid_2.txt", padded=True)
     env.reset()
     env.step(3)
     env.step(3)
@@ -23,10 +23,10 @@ if __name__ == "__main__":
     env.render_board(filename="invalid_render2.png")
 
     for i in range(8):
-        env = ZeroTwentyPCBBoard(5, 5, 5, 5, 3, 3, rand_nets=False, filename="envs/small/5x5_" + str(i) + ".txt", padded=True)
+        env = OrdinalEnv(5, 5, 5, 5, 3, 3, rand_nets=False, filename="envs/small/5x5_" + str(i) + ".txt", padded=True)
         env.render_board(filename="results/5x5_" + str(i) + ".png")
 
-    board = ZeroTwentyPCBBoard(7, 7, 7, 7, 3, 3, rand_nets=True, padded=True)
+    board = OrdinalEnv(7, 7, 7, 7, 3, 3, rand_nets=True, padded=True)
 
     obs = board.reset()
 
