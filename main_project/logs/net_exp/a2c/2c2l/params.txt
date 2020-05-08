@@ -1,0 +1,27 @@
+Namespace(algo='a2c', alpha=0.99, clip_param=0.2, continue_learning=False, conv=True, cuda=False, curriculum=True, entropy_coef=0.025, eps=1e-05, gae_lambda=0.95, gamma=0.99, linear_layers=[512, 256], log_dir='logs/net_exp/a2c/2c2l/', log_interval=50, lr=0.0001, max_cols=15, max_grad_norm=0.3, max_rows=15, min_cols=10, min_rows=10, no_cuda=False, num_env_steps=1000000000, num_envs=16, num_mini_batch=4, num_steps=8, ppo_epoch=4, save_dir='./trained_models/net_exp/a2c/2c2l/', save_interval=100, seed=1, use_gae=True, use_linear_lr_decay=True, value_loss_coef=0.5)
+cpu
+/Users/nick/miniconda3/lib/python3.7/site-packages/gym/logger.py:30: UserWarning: WARN: Box bound precision lowered by casting to float32
+  warnings.warn(colorize('%s: %s'%('WARN', msg % args), 'yellow'))
+ACNetwork(
+  (conv): Sequential(
+    (0): Conv2d(1, 8, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    (1): ReLU()
+    (2): Conv2d(8, 4, kernel_size=(1, 1), stride=(1, 1), padding=(1, 1))
+    (3): ReLU()
+    (4): Flatten()
+  )
+  (actor): Sequential(
+    (0): Linear(in_features=486, out_features=512, bias=True)
+    (1): ReLU()
+    (2): Linear(in_features=512, out_features=256, bias=True)
+    (3): ReLU()
+    (4): Linear(in_features=256, out_features=9, bias=True)
+  )
+  (critic): Sequential(
+    (0): Linear(in_features=486, out_features=512, bias=True)
+    (1): ReLU()
+    (2): Linear(in_features=512, out_features=256, bias=True)
+    (3): ReLU()
+    (4): Linear(in_features=256, out_features=1, bias=True)
+  )
+)

@@ -1,0 +1,1 @@
+--algo ppo --use-gae --lr 1e-3 --num-env-steps=1000000000 --clip-param 0.2 --value-loss-coef 0.5 --num-envs 16 --num-steps 128 --num-mini-batch 4 --log-dir logs/OHE/2c1l/ --save-dir ./trained_models/OHE/2c1l/ --log-interval 10 --use-linear-lr-decay --entropy-coef 0.05 --rows 5 --cols 5 --linear-layers 512 256 --conv

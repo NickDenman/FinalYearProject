@@ -1,0 +1,2 @@
+--algo ppo --use-gae --lr 1e-3 --num-env-steps=1000000000 --clip-param 0.2 --value-loss-coef 0.5 --num-envs 16 --num-steps 256 --num-mini-batch 4 --log-dir logs/curriculum/baseline2/ --save-dir ./trained_models/curriculum/baseline2/ --log-interval 10 --use-linear-lr-decay --entropy-coef 0.05 --min-rows 5 --min-cols 5 --max-rows 10 --max-cols 10 --linear-layers 1024 512 256 --conv
+
