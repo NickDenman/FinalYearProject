@@ -1,7 +1,8 @@
 import math
 
-from environment import OrdinalEnv, BaseEnv
-from environment.OrdinalEnv import OrdinalEnv
+from environment import ordinal_env, base_env
+from environment.ordinal_env import OrdinalEnv
+import environment.ordinal_env as BaseOE
 
 
 class Node:
@@ -62,7 +63,7 @@ def is_valid_move(board, location, action, net, node):
         return False
 
     # Check if new position is free/not the destination
-    if board.grid[next_r, next_c] != OrdinalEnv.MAX_VALUE and \
+    if board.grid[next_r, next_c] != BaseOE.MAX_VALUE and \
             ((next_r, next_c) != net.end):
         return False
     delta_r = next_r - location[0]
@@ -83,13 +84,13 @@ def is_valid_move(board, location, action, net, node):
     # Check if diagonal lines cross
     if action % 2 == 0:
         r, c = location
-        delta_r, delta_c = BaseEnv.actions.get(action)
+        delta_r, delta_c = base_env.actions.get(action)
 
         a1 = ((action + 7 - (2 * delta_r * delta_c)) % 8) + 1
         a2 = ((action + 7 + (2 * delta_r * delta_c)) % 8) + 1
 
-        if board.grid[r + delta_r, c] in OrdinalEnv.grid_matrix[a1] or \
-                board.grid[r, c + delta_c] in OrdinalEnv.grid_matrix[a2]:
+        if board.grid[r + delta_r, c] in BaseOE.grid_matrix[a1] or \
+                board.grid[r, c + delta_c] in BaseOE.grid_matrix[a2]:
             return False
 
     return True
@@ -97,7 +98,7 @@ def is_valid_move(board, location, action, net, node):
 
 def get_next_pos(location, action):
     r, c = location
-    r_delta, c_delta = BaseEnv.actions.get(action)
+    r_delta, c_delta = base_env.actions.get(action)
 
     return r + r_delta, c + c_delta
 
@@ -160,7 +161,7 @@ def astar(board):
             next_pos = get_next_pos(current_node.position, action)
             if next_pos == nets[cur_net_id].end and next_pos != end_node.position:
                 new_node = Node(current_node, next_pos, cur_net_id)
-                new_node.g = current_node.g + math.hypot(BaseEnv.actions[action][0], BaseEnv.actions[action][1])
+                new_node.g = current_node.g + math.hypot(base_env.actions[action][0], base_env.actions[action][1])
                 new_node.h = nets[cur_net_id].h
                 current_node = new_node
 
@@ -170,7 +171,7 @@ def astar(board):
 
             # Create new node
             new_node = Node(current_node, next_pos, cur_net_id)
-            new_node.g = current_node.g + math.hypot(BaseEnv.actions[action][0], BaseEnv.actions[action][1])
+            new_node.g = current_node.g + math.hypot(base_env.actions[action][0], base_env.actions[action][1])
             new_node.h = math.hypot(nets[cur_net_id].end[0] - next_pos[0], nets[cur_net_id].end[1] - next_pos[1]) + nets[cur_net_id].h
 
             # Append

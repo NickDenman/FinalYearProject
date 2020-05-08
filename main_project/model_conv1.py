@@ -11,29 +11,29 @@ class ACNetwork(nn.Module):
         init_ = lambda m: init(m, nn.init.orthogonal_,
                                lambda x: nn.init.constant_(x, 0), np.sqrt(2))
 
+        out_channels = 8
+        kernel_size = 3
         self.conv = nn.Sequential(
             init_(nn.Conv2d(1,
-                            4,
-                            3,
+                            out_channels,
+                            kernel_size,
                             stride=1,
                             padding_mode='zeros',
                             padding=1)), nn.ReLU(),
-            init_(nn.Conv2d(4,
-                            8,
-                            3,
+            init_(nn.Conv2d(8,
+                            4,
+                            1,
                             stride=1,
                             padding_mode='zeros',
-                            padding=1)), nn.ReLU(), Flatten())
+                            padding=1)), nn.ReLU(),
+            Flatten())
 
-        out_size = 650
-        actor_layers = generate_linear_layers(out_size,
-                                              hidden_sizes,
-                                              action_size,
-                                              init_)
-        critic_layers = generate_linear_layers(out_size,
-                                               hidden_sizes,
-                                               1,
-                                               init_)
+        # out_size = 650
+        out_size = 486
+        actor_layers = \
+            generate_linear_layers(out_size, hidden_sizes, action_size, init_)
+        critic_layers = \
+            generate_linear_layers(out_size, hidden_sizes, 1, init_)
 
         self.actor = nn.Sequential(*actor_layers)
         self.critic = nn.Sequential(*critic_layers)

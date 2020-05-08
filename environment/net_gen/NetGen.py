@@ -1,7 +1,7 @@
 import random
 from collections import defaultdict
 
-from environment.Net import Net
+from environment.net import Net
 from environment.net_gen.grid import Grid
 from environment.net_gen.mitm import Mitm
 

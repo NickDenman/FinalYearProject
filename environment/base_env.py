@@ -6,14 +6,14 @@ import gym
 import numpy as np
 import cairocffi as cairo
 
-from environment.Net import Net
+from environment.net import Net
 from environment.net_gen import NetGen
 
 FINAL_REWARD = 10.0
 NET_REWARD = 2.0
 STEP_REWARD = -1.0
 DIAGONAL_REWARD = -0.4  # diagonal lines are of length √2 ~= 1.4
-DIRECTION_CHANGE_FACTOR = 0.25
+DIRECTION_CHANGE_FACTOR = 0.0
 STEP_FACTOR = 2
 
 actions = {0: (0, 0),
@@ -280,7 +280,7 @@ class BaseEnv(abc.ABC, gym.Env):
         cr.stroke()
 
     def get_colour(self, net_id):
-        return colours.get(net_id)
+        return colours.get(net_id % len(colours))
 
 
 class Agent:

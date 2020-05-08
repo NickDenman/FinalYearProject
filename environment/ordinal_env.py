@@ -1,6 +1,6 @@
 import gym
 import numpy as np
-import environment.BaseEnv as pcb
+import environment.base_env as pcb
 
 opposite_actions = {1: 5,
                     2: 6,

@@ -1,17 +1,15 @@
 import math
 import os
-import numpy as np
+
 import torch
 from gym import ObservationWrapper, ActionWrapper
 
-from environment.OrdinalEnv import OrdinalEnv
-from environment.pytorch_env import make_vec_env
-from main_project.AStar import astar
+from environment.ordinal_env import OrdinalEnv
 from main_project.args import get_args
 
 
 def load_network(args):
-    load_path = os.path.join(args.save_dir, "final", "ppo9", "ppo",
+    load_path = os.path.join(args.save_dir, "net_exp", "ppo", "2c3l", "ppo",
                              "network.pt")
     ac = torch.load(load_path)[0]
 
@@ -38,7 +36,7 @@ def route_board(env, network):
     steps = 0
     reward = 0
 
-    while not done and steps < 450:
+    while not done and steps < 250:
         with torch.no_grad():
             action, _ = network.act(obs)
 
@@ -48,7 +46,7 @@ def route_board(env, network):
         reward += r
         steps += 1
 
-    return reward
+    return reward, info['completed']
 
 
 def route_unseen(network):
@@ -65,20 +63,21 @@ def route_unseen(network):
 
     p = [2, 4, 7, 8]
 
-    for i in p:
+    for i in range(1):
         size = envs[i]
         env = OrdinalEnv(*size, *size, 3, 3, rand_nets=False, filename="envs/unseen_envs/env_" + str(i) + ".txt")
         env = ObsTensorise(env)
         env = ActionTensorise(env)
         # env56.render_board(filename="results/unseen_envs/env_" + str(i) + ".png")
-
-        print(i)
-        best_r = -math.inf
-        for _ in range(250):
-            r = route_board(env, network)
-            if r > best_r:
-                best_r = r
-                env.render_board(filename="results/unseen_envs/env_" + str(i) + ".png")
+        first = True
+        best_l = math.inf
+        for j in range(250):
+            if j % 25 == 0:
+                print(str(i) + ": " + str(j))
+            r, done = route_board(env, network)
+            env.render_board(
+                filename="results/unseen_envs/spam/env_" + str(i) + "-" + str(
+                    j) + ".png")
 
 
 if __name__ == "__main__":

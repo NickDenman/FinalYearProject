@@ -7,11 +7,11 @@ from torch.utils.tensorboard import SummaryWriter
 
 from algorithms.a2c import A2C
 from algorithms.ppo import PPO
-from environment.OrdinalEnv import OrdinalEnv
+from environment.ordinal_env import OrdinalEnv
 from environment.pytorch_env import make_vec_env
 from main_project import utils
 from main_project.args import get_args
-from main_project.model_conv1 import ACNetwork as ACNetworkConv1
+from main_project.model_conv import ACNetwork as ACNetworkConv
 from main_project.model_linear import ACNetwork as ACNetworkLinear
 from main_project.storage_conv import RolloutStorage as RolloutStorageConv
 from main_project.storage_linear import RolloutStorage as RolloutStorageLinear
@@ -49,7 +49,7 @@ def main(env):
         actor_critic = load_network(args)
     else:
         if args.conv:
-            actor_critic = ACNetworkConv1(envs.observation_space.spaces,
+            actor_critic = ACNetworkConv(envs.observation_space.spaces,
                                           envs.action_space.n,
                                           args.linear_layers)
         else:
@@ -87,13 +87,14 @@ def learn(actor_critic, agent, args, envs, device):
     graduate_len = 2500
     graduate_list = deque(maxlen=graduate_len)
 
-    episode_rewards = deque(maxlen=args.log_interval * 2)
-    boards_completed = deque(maxlen=args.log_interval * 2)
+    log_len = 10
+    episode_rewards = deque(maxlen=log_len)
+    boards_completed = deque(maxlen=log_len)
     env_rewards = [0 for _ in range(args.num_envs)]
 
-    value_losses = deque(maxlen=args.log_interval * 2)
-    action_losses = deque(maxlen=args.log_interval * 2)
-    entropies = deque(maxlen=args.log_interval * 2)
+    value_losses = deque(maxlen=log_len)
+    action_losses = deque(maxlen=log_len)
+    entropies = deque(maxlen=log_len)
 
     num_updates = int(args.num_env_steps) // args.num_steps // args.num_envs
 
@@ -158,7 +159,8 @@ def learn(actor_critic, agent, args, envs, device):
                  max_nets,
                  graduate,
                  grad_percentage,
-                 graduate_list)
+                 graduate_list,
+                 log_len)
         rollouts.after_update()
 
 
@@ -176,7 +178,8 @@ def log_info(writer,
              max_nets,
              graduate,
              grad_percentage,
-             graduate_list):
+             graduate_list,
+             log_len):
     if (update % args.save_interval == 0 or update == num_updates - 1) \
             and args.save_dir != "":
         save_path = os.path.join(args.save_dir, args.algo)
@@ -189,7 +192,7 @@ def log_info(writer,
 
 
     if (update % args.log_interval == 0 or graduate) and \
-            len(episode_rewards) == 2 * args.log_interval:
+            len(episode_rewards) == log_len:
         total_num_steps = (update + 1) * args.num_envs * args.num_steps
         v_loss = np.mean(value_losses)
         a_loss = np.mean(action_losses)

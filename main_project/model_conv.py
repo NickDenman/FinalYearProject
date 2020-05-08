@@ -20,15 +20,16 @@ class ACNetwork(nn.Module):
                             stride=1,
                             padding_mode='zeros',
                             padding=1)), nn.ReLU(),
-            init_(nn.Conv2d(8,
-                            4,
-                            1,
-                            stride=1,
-                            padding_mode='zeros',
-                            padding=1)), nn.ReLU(),
+            # init_(nn.Conv2d(8,
+            #                 4,
+            #                 1,
+            #                 stride=1,
+            #                 padding_mode='zeros',
+            #                 padding=1)), nn.ReLU(),
             Flatten())
 
-        out_size = 486
+        out_size = 650
+        # out_size = 486
         actor_layers = \
             generate_linear_layers(out_size, hidden_sizes, action_size, init_)
         critic_layers = \
